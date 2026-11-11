@@ -67,9 +67,33 @@ pub fn supported_language_from_locale() -> Option<Language> {
 /// Returns layout languages only — "Spanish" maps to [`Language::Es`] (Galician
 /// shares the Spanish layout); the lesson-vs-layout split is in
 /// [`resolve_languages`].
+///
+/// Variants of a supported language built on the US physical layout (e.g.
+/// "Italian (US)", "German (US)", "Portuguese (Nativo for US keyboards)") map
+/// to [`Language::Us`]: the keys sit where the US keyboard has them, so the
+/// language-specific keyboard and lessons would not match what the user types.
 pub fn language_from_layout_name(name: &str) -> Option<Language> {
     let n = name.to_lowercase();
+    let language = base_language_from_layout_name(&n)?;
+    if language != Language::Us && is_us_variant(&n) {
+        return Some(Language::Us);
+    }
+    Some(language)
+}
 
+/// Whether the variant qualifier of a lowercased layout name (the part in
+/// parentheses, e.g. "us, phonetic") contains a standalone "us" token.
+fn is_us_variant(n: &str) -> bool {
+    n.split_once('(').is_some_and(|(_, qualifier)| {
+        qualifier
+            .split(|c: char| !c.is_alphanumeric())
+            .any(|tok| tok == "us")
+    })
+}
+
+/// Keyword-based mapping of a lowercased layout name to its base language,
+/// ignoring US-based variants (see [`language_from_layout_name`]).
+fn base_language_from_layout_name(n: &str) -> Option<Language> {
     // Brazilian Portuguese must be checked before generic Portuguese.
     if n.contains("portuguese") || n.contains("português") || n.contains("portugues") {
         if n.contains("brazil")
@@ -116,9 +140,13 @@ pub fn language_from_layout_name(name: &str) -> Option<Language> {
     }
 
     // English/US layouts. Match "english" or a standalone "us"/"usa" token
-    // (avoid substring false positives like "russian"/"belarusian").
+    // (avoid substring false positives like "russian"/"belarusian"). The token
+    // is only looked for outside the variant qualifier, so unsupported
+    // US-based variants such as "Russian (US, phonetic)" are not taken as US.
+    let base = n.split_once('(').map_or(n, |(base, _)| base);
     if n.contains("english")
-        || n.split(|c: char| !c.is_alphanumeric())
+        || base
+            .split(|c: char| !c.is_alphanumeric())
             .any(|tok| tok == "us" || tok == "usa")
     {
         return Some(Language::Us);
@@ -374,6 +402,19 @@ mod tests {
             ("French", Some(Language::Fr)),
             ("Français", Some(Language::Fr)),
             ("Italian", Some(Language::It)),
+            // Variants built on the US physical layout fall back to US.
+            ("Italian (US)", Some(Language::Us)),
+            ("German (US)", Some(Language::Us)),
+            ("French (US)", Some(Language::Us)),
+            ("Portuguese (Nativo for US keyboards)", Some(Language::Us)),
+            (
+                "Portuguese (Brazil, Nativo for US keyboards)",
+                Some(Language::Us),
+            ),
+            ("English (US, intl., with dead keys)", Some(Language::Us)),
+            // Unsupported languages stay unsupported even on a US base.
+            ("Russian (US, phonetic)", None),
+            ("Czech (US, Dvorak, UCW support)", None),
             ("Polish", Some(Language::Pl)),
             ("Portuguese", Some(Language::Pt)),
             ("Portuguese (Brazil)", Some(Language::PtBr)),
