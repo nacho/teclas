@@ -111,8 +111,8 @@ mod imp {
                 finger_states(self.current_finger.get(), self.modifier_finger.get());
             for widget in self.finger_widgets() {
                 let finger = widget.finger();
-                widget.set_current(finger.is_some_and(|f| current.contains(&f)));
-                widget.set_modifier(finger.is_some_and(|f| modifier.contains(&f)));
+                widget.set_current(current.contains(&finger));
+                widget.set_modifier(modifier.contains(&finger));
             }
         }
     }

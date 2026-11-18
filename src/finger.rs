@@ -5,7 +5,8 @@ use gtk::subclass::prelude::*;
 use std::cell::Cell;
 
 /// Which finger of a hand a `FingerWidget` is. The kind decides its size.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, glib::Boxed)]
+#[boxed_type(name = "TeclasFingerKind")]
 pub enum FingerKind {
     Pinky,
     Ring,
@@ -40,10 +41,16 @@ impl FingerKind {
 mod imp {
     use super::*;
 
-    #[derive(Default)]
+    #[derive(Default, glib::Properties)]
+    #[properties(wrapper_type = super::FingerWidget)]
     pub struct FingerWidget {
+        /// Which hand slot this widget is; decides its size.
+        #[property(get, set, construct_only)]
         pub kind: Cell<FingerKind>,
-        pub finger: Cell<Option<KeyFinger>>,
+        /// Which of the ten fingers this widget stands for; decides its
+        /// colour class.
+        #[property(get, set, construct_only)]
+        pub finger: Cell<KeyFinger>,
     }
 
     #[glib::object_subclass]
@@ -58,7 +65,19 @@ mod imp {
         }
     }
 
-    impl ObjectImpl for FingerWidget {}
+    #[glib::derived_properties]
+    impl ObjectImpl for FingerWidget {
+        fn constructed(&self) {
+            self.parent_constructed();
+
+            let obj = self.obj();
+            obj.set_can_target(false);
+            obj.add_css_class(&self.finger.get().css_class());
+            if self.kind.get() == FingerKind::Thumb {
+                obj.add_css_class("thumb");
+            }
+        }
+    }
 
     impl WidgetImpl for FingerWidget {
         fn measure(&self, orientation: gtk::Orientation, _for_size: i32) -> (i32, i32, i32, i32) {
@@ -84,24 +103,10 @@ glib::wrapper! {
 
 impl FingerWidget {
     pub fn new(kind: FingerKind, finger: KeyFinger) -> Self {
-        let widget: Self = glib::Object::new();
-        let imp = widget.imp();
-        imp.kind.set(kind);
-        imp.finger.set(Some(finger));
-        widget.set_can_target(false);
-        widget.add_css_class(&finger.css_class());
-        if kind == FingerKind::Thumb {
-            widget.add_css_class("thumb");
-        }
-        widget
-    }
-
-    pub fn kind(&self) -> FingerKind {
-        self.imp().kind.get()
-    }
-
-    pub fn finger(&self) -> Option<KeyFinger> {
-        self.imp().finger.get()
+        glib::Object::builder()
+            .property("kind", kind)
+            .property("finger", finger)
+            .build()
     }
 
     /// Whether this finger presses the next key.

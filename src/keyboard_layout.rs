@@ -1,16 +1,19 @@
 use crate::key::KeyEntry;
 use crate::utils::decompose_with_spacing_accent;
+use gtk::glib;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::str::FromStr;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, glib::Boxed)]
+#[boxed_type(name = "TeclasKeyFinger")]
 #[serde(rename_all = "snake_case")]
 pub enum KeyFinger {
     LeftPinky,
     LeftRing,
     LeftMiddle,
+    #[default]
     LeftIndex,
     LeftThumb,
     RightIndex,
