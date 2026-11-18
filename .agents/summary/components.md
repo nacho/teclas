@@ -82,7 +82,15 @@
 ### HandWidget (`src/hand_widget.rs`)
 - **Parent**: `gtk::Widget`
 - **Role**: Visual hand position guide showing which finger to use.
-- **Key behavior**: Custom `snapshot()` rendering of left/right hands with highlighted current finger. Caches theme colors and responds to dark/light mode changes.
+- **Key behavior**: Holds a left and a right `Hand` side by side (`gtk::BoxLayout`). Marks the finger pressing the next key (`current`; `BothThumbs` marks both thumbs) and the finger holding Shift/AltGr (`modifier`) through the pure `finger_states` helper. The `use-finger-colors` setting toggles the `finger-colors` class. CSS node: `hands`.
+
+### Hand and HandLayoutManager (`src/hand.rs`)
+- **Parent**: `gtk::Widget` / `gtk::LayoutManager`
+- **Role**: One hand (CSS node `hand`, class `left`/`right`) with a `palm` node and five `FingerWidget`s. `HandLayoutManager` places them in a 128×132 box from pure, unit-tested functions (`palm_rect`, `finger_rect`, `finger_angle`); the right hand mirrors the left one, and thumbs are rotated ±35° with an allocation transform.
+
+### FingerWidget (`src/finger.rs`)
+- **Parent**: `gtk::Widget`
+- **Role**: One finger of the hand guide (CSS node `finger`). Its size comes from its `FingerKind` (pinky, ring, middle, index, thumb). Its look comes from `resources/style.css` through CSS classes: `thumb`, `current`, `modifier`, `finger-<name>`.
 
 ### SpeedTestTextView (`src/speed_test_text_view.rs`)
 - **Parent**: `adw::Bin` (composite template)

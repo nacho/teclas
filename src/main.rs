@@ -1,6 +1,8 @@
 mod application;
 mod course;
 mod course_completion_view;
+mod finger;
+mod hand;
 mod hand_widget;
 mod key;
 mod keyboard_layout;

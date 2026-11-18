@@ -124,6 +124,89 @@ keyboard key.modifier.current {
   color: @keyboard-modifier-current-text-color;
 }
 
+/* Hand guide: a `hands` node with two `hand` nodes, each with a `palm` and
+   five `finger` nodes, see hand_widget.rs, hand.rs and finger.rs */
+palm {
+  background-color: @hand-palm-color;
+  /* Inset shadows instead of borders keep the parts at their exact size */
+  box-shadow: inset 0 0 0 1px @hand-palm-border-color;
+  border-radius: 17px;
+}
+
+finger {
+  background-color: @hand-finger-default-color;
+  box-shadow: inset 0 0 0 1px @hand-finger-border-color;
+  /* Rounded tip, flatter base */
+  border-radius: 9px 9px 4px 4px;
+}
+
+/* Thumbs are rounder at their outer end */
+hand.left finger.thumb {
+  border-radius: 7px 12px 12px 7px;
+}
+
+hand.right finger.thumb {
+  border-radius: 12px 7px 7px 12px;
+}
+
+hands.finger-colors finger.finger-left-pinky {
+  background-color: @finger-left-pinky-color;
+}
+
+hands.finger-colors finger.finger-right-pinky {
+  background-color: @finger-right-pinky-color;
+}
+
+hands.finger-colors finger.finger-left-ring {
+  background-color: @finger-left-ring-color;
+}
+
+hands.finger-colors finger.finger-right-ring {
+  background-color: @finger-right-ring-color;
+}
+
+hands.finger-colors finger.finger-left-middle {
+  background-color: @finger-left-middle-color;
+}
+
+hands.finger-colors finger.finger-right-middle {
+  background-color: @finger-right-middle-color;
+}
+
+hands.finger-colors finger.finger-left-index {
+  background-color: @finger-left-index-color;
+}
+
+hands.finger-colors finger.finger-right-index {
+  background-color: @finger-right-index-color;
+}
+
+hands.finger-colors finger.finger-left-thumb {
+  background-color: @finger-left-thumb-color;
+}
+
+hands.finger-colors finger.finger-right-thumb {
+  background-color: @finger-right-thumb-color;
+}
+
+hands.finger-colors finger.finger-both-thumbs {
+  background-color: @finger-both-thumbs-color;
+}
+
+/* The finger holding Shift or AltGr for the next key, then the finger
+   pressing it. The second selectors outweigh the finger colours above. */
+hands finger.modifier,
+hands.finger-colors finger.modifier {
+  background-color: @hand-finger-modifier-color;
+  box-shadow: inset 0 0 0 1px @hand-finger-current-color;
+}
+
+hands finger.current,
+hands.finger-colors finger.current {
+  background-color: @hand-finger-current-color;
+  box-shadow: none;
+}
+
 .card.typing-error {
   background-color: alpha(@error_color, 0.2);
   transition: background-color 100ms ease-out;

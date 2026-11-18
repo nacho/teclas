@@ -91,8 +91,10 @@ fn get_finger_for_char(&self, ch: char) -> Option<Finger>
 ### HandWidget
 
 ```rust
-// Set which finger to highlight
+// Set which finger to highlight (BothThumbs highlights both thumbs)
 fn set_current_finger(&self, finger: Option<Finger>)
+// Set which finger holds the modifier (Shift, AltGr) for the next key
+fn set_modifier_finger(&self, finger: Option<Finger>)
 ```
 
 ### TypingRow

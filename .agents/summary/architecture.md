@@ -31,7 +31,7 @@ graph TB
     subgraph Widgets["Reusable Widgets"]
         typing["TypingRow<br/>(Text input)"]
         keyboard["KeyboardWidget<br/>(Visual keyboard, Key children)"]
-        hand["HandWidget<br/>(Hand position guide)"]
+        hand["HandWidget<br/>(Hand position guide, Hand/FingerWidget children)"]
         stv["SpeedTestTextView<br/>(Rich text display)"]
         results["SpeedTestResultsView"]
     end

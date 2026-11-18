@@ -34,7 +34,9 @@ src/                        # Rust source
 ├── keyboard_widget.rs      # Visual keyboard: creates Key children, tracks the current key
 ├── key.rs                  # One keyboard key (labels, size by kind, CSS classes)
 ├── keyboard_layout_manager.rs # Places the keys row by row
-├── hand_widget.rs          # Hand position guide (custom rendering)
+├── hand_widget.rs          # Hand guide: two Hand children, tracks current/modifier finger
+├── hand.rs                 # One hand (palm + 5 fingers) and HandLayoutManager (placement, thumb rotation)
+├── finger.rs               # One finger of the hand guide (size by kind, CSS classes)
 ├── typing_row.rs           # Text input widget for lessons
 ├── utils.rs                # Locale detection, Unicode decomposition
 ├── preferences_view.rs     # Lesson settings UI
@@ -77,6 +79,7 @@ build.rs                    # Config generation + GResource compilation
 | Add a new view/page | `src/window.rs` + `resources/ui/window.ui`, then model after `src/about_view.rs` |
 | Modify lesson behavior | `src/lesson_view.rs` (flow), `src/course.rs` (data), `src/typing_row.rs` (input) |
 | Change keyboard rendering | `src/key.rs` (key look and size), `src/keyboard_layout_manager.rs` (placement), `src/keyboard_widget.rs` (state), `resources/style.css` (`keyboard`/`key` rules), `data/keyboard_layouts/*.json` |
+| Change hand guide rendering | `src/finger.rs` (finger size and classes), `src/hand.rs` (palm/finger positions, mirroring, thumb rotation), `src/hand_widget.rs` (state), `resources/style.css` (`hands`/`hand`/`palm`/`finger` rules) |
 | Change which key/modifier types a character | `src/keyboard_layout.rs` (`resolve_char`, `modifier_keys_for`) |
 | Add a new language | `src/utils.rs` (`Language` enum variant + `as_code`/`from_code` + `language_from_locale`/`language_from_layout_name` mapping), `src/course.rs` + `src/keyboard_layout.rs` (match arms), `po/LINGUAS`, `data/lessons/`, `data/keyboard_layouts/` |
 | Change visual styling | `resources/style.css` (semantic color vars for keyboard, hand, finger colors) |
@@ -88,7 +91,7 @@ build.rs                    # Config generation + GResource compilation
 - **Dual build systems**: Cargo for development (`cargo run`), Meson for production/Flatpak. `build.rs` generates `config.rs` from `config.rs.in` using env vars — in Cargo dev builds, defaults are used; Meson sets real paths.
 - **Dead key handling**: Spans three files — `utils.rs` (`decompose_with_spacing_accent`), `keyboard_widget.rs` (sequence tracking with `advance_sequence`), `typing_row.rs` (detection via `dead-key-started` signal).
 - **Embedded data**: Lesson JSONs use `include_str!` (compile-time). Adding a new lesson language requires a new `Language` enum variant (`src/utils.rs`) and match arms in `Course::new_with_language()` and `KeyboardLayout::load_from_json()`.
-- **Color system**: `style.css` uses `@define-color` with Adwaita semantic colors and GNOME HIG palette colors for finger-based color coding. The keyboard uses them from plain CSS rules on its `key` nodes, so theme changes apply automatically. `HandWidget` still looks them up at runtime (`lookup_color`), caches them and refreshes the cache on theme changes.
+- **Color system**: `style.css` uses `@define-color` with Adwaita semantic colors and GNOME HIG palette colors for finger-based color coding. The keyboard and the hand guide use them from plain CSS rules on their `key` and `finger`/`palm` nodes, so nothing caches colors and theme changes apply automatically. Both toggle a `finger-colors` class on their root node (`keyboard`, `hands`) from the `use-finger-colors` setting.
 
 ## Tooling & Config
 <!-- metadata: scope=ci-hooks-build -->
