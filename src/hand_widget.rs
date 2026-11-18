@@ -97,8 +97,10 @@ mod imp {
 
         fn measure(&self, orientation: gtk::Orientation, _for_size: i32) -> (i32, i32, i32, i32) {
             match orientation {
-                gtk::Orientation::Horizontal => (240, 240, -1, -1),
-                gtk::Orientation::Vertical => (125, 125, -1, -1),
+                // The drawing spans x 9..247 and y 9..132; keep the 9 px left
+                // margin on the right too so the hands stay centred.
+                gtk::Orientation::Horizontal => (256, 256, -1, -1),
+                gtk::Orientation::Vertical => (132, 132, -1, -1),
                 _ => (0, 0, -1, -1),
             }
         }
