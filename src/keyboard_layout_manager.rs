@@ -154,6 +154,11 @@ mod imp {
             let flow = flow_of(&keys);
 
             for (key, rect) in keys.iter().zip(&flow.rects) {
+                // GTK requires every child to be measured before it is
+                // allocated. The flow already knows the sizes from the key
+                // kinds, so the result is not needed.
+                key.preferred_size();
+
                 // Round both edges so neighbouring keys keep the same gap.
                 let left = rect.x.round() as i32;
                 let top = rect.y.round() as i32;
