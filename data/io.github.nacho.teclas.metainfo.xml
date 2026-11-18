@@ -120,6 +120,17 @@
   </screenshots>
   
   <releases>
+    <release version="3.1.1" date="2026-11-18">
+      <description>
+        <ul>
+          <li>Keyboard layouts that keep the US key positions, such as Italian (US) or German (US), now use the US keyboard and lessons</li>
+          <li>Unsupported US-based layouts, such as Russian (US, phonetic), now show the unsupported layout banner</li>
+          <li>Fixed the hand guide drawing outside its area</li>
+          <li>Updated Italian translations</li>
+          <li>Updated dependencies</li>
+        </ul>
+      </description>
+    </release>
     <release version="3.1.0" date="2026-11-06">
       <description>
         <ul>
