@@ -228,10 +228,7 @@ impl imp::TypingRow {
         let y = point.y() + (rect.y() / pango::SCALE) as f32;
         let height = (rect.height() / pango::SCALE) as f32;
 
-        #[allow(deprecated)]
-        let style_ctx = label.style_context();
-        #[allow(deprecated)]
-        let color = style_ctx.color();
+        let color = label.color();
 
         let cursor_rect = gtk::graphene::Rect::new(x, y, 1.0, height);
         snapshot.append_color(&color, &cursor_rect);
