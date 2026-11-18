@@ -1,5 +1,6 @@
+use crate::utils::decompose_with_spacing_accent;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::str::FromStr;
 
@@ -219,6 +220,37 @@ impl KeyboardLayout {
             .copied()
             .filter(|name| self.modifiers.contains_key(*name))
             .collect()
+    }
+
+    /// Whether `key` should show its text when only the characters in
+    /// `visible` are being practised. `None` shows every key. A key is shown
+    /// when it produces a visible character at any level, or when it is needed
+    /// to compose a visible character that is not on the layout (an accent key
+    /// or the base letter of e.g. `á`).
+    pub fn is_key_visible(&self, key: &KeyInfo, visible: Option<&HashSet<char>>) -> bool {
+        let Some(visible) = visible else {
+            return true;
+        };
+
+        let produced = [
+            Some(first_char(Some(&key.base)).unwrap_or(' ')),
+            first_char(key.shift.as_deref()),
+            first_char(key.altgr.as_deref()),
+        ];
+
+        if produced.iter().flatten().any(|ch| visible.contains(ch)) {
+            return true;
+        }
+
+        visible.iter().any(|&ch| {
+            !self.contains_character(ch)
+                && decompose_with_spacing_accent(ch).is_some_and(|(spacing_accent, base)| {
+                    produced
+                        .iter()
+                        .flatten()
+                        .any(|&p| p == spacing_accent || p == base)
+                })
+        })
     }
 
     pub fn modifier_finger_for(&self, target: &ResolvedKey) -> Option<Finger> {
@@ -645,5 +677,50 @@ mod tests {
         assert_eq!(enter.rows, Some(vec![1, 2]));
         assert!(enter.spans_row(1));
         assert!(enter.spans_row(2));
+    }
+
+    fn key_for(layout: &KeyboardLayout, ch: char) -> KeyInfo {
+        let r = layout.resolve_char(ch).unwrap();
+        layout.keys[r.row][r.col].clone()
+    }
+
+    fn set(chars: &str) -> HashSet<char> {
+        chars.chars().collect()
+    }
+
+    #[test]
+    fn test_is_key_visible_none_shows_everything() {
+        let layout = KeyboardLayout::load_from_json(crate::language::Language::Es).unwrap();
+        assert!(layout.is_key_visible(&key_for(&layout, 'q'), None));
+    }
+
+    #[test]
+    fn test_is_key_visible_plain() {
+        let layout = KeyboardLayout::load_from_json(crate::language::Language::Es).unwrap();
+        let visible = set("a");
+        assert!(layout.is_key_visible(&key_for(&layout, 'a'), Some(&visible)));
+        assert!(!layout.is_key_visible(&key_for(&layout, 'q'), Some(&visible)));
+    }
+
+    #[test]
+    fn test_is_key_visible_shift_and_altgr_levels() {
+        let layout = KeyboardLayout::load_from_json(crate::language::Language::Es).unwrap();
+        // '!' is the shifted level of the '1' key, '€' the AltGr of '5'.
+        let shifted = set("!");
+        assert!(layout.is_key_visible(&key_for(&layout, '1'), Some(&shifted)));
+        let altgr = set("€");
+        assert!(layout.is_key_visible(&key_for(&layout, '5'), Some(&altgr)));
+        assert!(!layout.is_key_visible(&key_for(&layout, '2'), Some(&altgr)));
+    }
+
+    #[test]
+    fn test_is_key_visible_dead_key_composition() {
+        // 'á' is not on the ES layout, so it needs the accent key and 'a'.
+        let layout = KeyboardLayout::load_from_json(crate::language::Language::Es).unwrap();
+        assert!(!layout.contains_character('á'));
+        let visible = set("á");
+        assert!(layout.is_key_visible(&key_for(&layout, 'a'), Some(&visible)));
+        assert!(layout.is_key_visible(&key_for(&layout, '´'), Some(&visible)));
+        assert!(!layout.is_key_visible(&key_for(&layout, 'q'), Some(&visible)));
     }
 }

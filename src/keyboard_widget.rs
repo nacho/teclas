@@ -1,3 +1,4 @@
+use crate::key::{KEY_SIZE, KEY_SPACING, KeyKind};
 use crate::keyboard_layout::{Finger, KeyInfo, KeyboardLayout, ResolvedKey};
 use crate::utils::decompose_with_spacing_accent;
 use gtk::gdk;
@@ -214,16 +215,17 @@ mod imp {
 
     impl KeyboardWidget {
         fn calculate_size(layout: &KeyboardLayout) -> (i32, i32) {
-            let key_width = 50.0;
-            let key_height = 50.0;
-            let key_spacing = 5.0;
-            let row_spacing = 5.0;
+            let key_width = KeyKind::Character.width() as f64;
+            let key_height = KEY_SIZE as f64;
+            let key_spacing = KEY_SPACING as f64;
+            let row_spacing = KEY_SPACING as f64;
+            let modifier = |name: &str| KeyKind::Modifier(name).width() as f64;
 
             let row0_keys = layout.keys.first().map(|r| r.len()).unwrap_or(12);
             let row0_width = row0_keys as f64 * key_width
                 + (row0_keys - 1) as f64 * key_spacing
                 + key_spacing
-                + key_width * 2.0;
+                + modifier("backspace");
 
             let enter_on_row1 = layout
                 .modifiers
@@ -231,47 +233,45 @@ mod imp {
                 .is_some_and(|e| e.spans_row(1));
 
             let row1_keys = layout.keys.get(1).map(|r| r.len()).unwrap_or(12);
-            let row1_width = key_width * 1.5
+            let row1_width = modifier("tab")
                 + key_spacing
                 + row1_keys as f64 * key_width
                 + (row1_keys - 1) as f64 * key_spacing
                 + if enter_on_row1 {
-                    key_spacing + key_width * 1.75
+                    key_spacing + modifier("enter")
                 } else {
                     0.0
                 };
 
             let row2_keys = layout.keys.get(2).map(|r| r.len()).unwrap_or(12);
-            let row2_width = key_width * 1.75
+            let row2_width = modifier("caps_lock")
                 + key_spacing
                 + row2_keys as f64 * key_width
                 + row2_keys as f64 * key_spacing
-                + key_width * 1.75
+                + modifier("enter")
                 - key_spacing * 2.0;
 
             let row3_keys = layout.keys.get(3).map(|r| r.len()).unwrap_or(11);
-            let row3_width = key_width * 1.25
+            let row3_width = modifier("shift_left")
                 + key_spacing
                 + row3_keys as f64 * key_width
                 + (row3_keys - 1) as f64 * key_spacing
                 + key_spacing
-                + key_width * 3.0;
+                + modifier("shift_right");
 
-            let row4_width = key_width * 1.5
-                + key_spacing
-                + key_width * 1.2
-                + key_spacing
-                + key_width * 1.3
-                + key_spacing
-                + key_width * 6.0
-                + key_spacing
-                + key_width * 1.3
-                + key_spacing
-                + key_width * 1.2
-                + key_spacing
-                + key_width * 1.2
-                + key_spacing
-                + key_width * 1.5;
+            let row4_width = [
+                modifier("ctrl_left"),
+                modifier("super_left"),
+                modifier("alt_left"),
+                KeyKind::Space.width() as f64,
+                modifier("alt_right"),
+                modifier("super_right"),
+                modifier("menu"),
+                modifier("ctrl_right"),
+            ]
+            .iter()
+            .sum::<f64>()
+                + 7.0 * key_spacing;
 
             let keyboard_width = row0_width
                 .max(row1_width)
@@ -437,10 +437,10 @@ mod imp {
             let layout_borrowed = layout.borrow();
             let visible_keys_borrowed = visible_keys.borrow();
 
-            let key_width = 50.0;
-            let key_height = 50.0;
-            let key_spacing = 5.0;
-            let row_spacing = 5.0;
+            let key_width = KeyKind::Character.width();
+            let key_height = KEY_SIZE;
+            let key_spacing = KEY_SPACING;
+            let row_spacing = KEY_SPACING;
 
             let pango_context = widget.pango_context();
 
@@ -483,52 +483,7 @@ mod imp {
             let is_modifier_current = |name: &str| required_modifiers.contains(&name);
 
             let should_show_key = |key_info: &KeyInfo| -> bool {
-                visible_keys_borrowed.as_ref().is_none_or(|visible| {
-                    // Check if any character this key can produce is in the visible set
-                    let base_char = key_info.base.chars().next().unwrap_or(' ');
-                    if visible.contains(&base_char) {
-                        return true;
-                    }
-                    if let Some(shift) = &key_info.shift
-                        && let Some(shift_char) = shift.chars().next()
-                        && visible.contains(&shift_char)
-                    {
-                        return true;
-                    }
-                    if let Some(altgr) = &key_info.altgr
-                        && let Some(altgr_char) = altgr.chars().next()
-                        && visible.contains(&altgr_char)
-                    {
-                        return true;
-                    }
-
-                    // For characters not directly on keyboard, check if this key is needed
-                    // to compose them (e.g., 'a' + '´' = 'á')
-                    for &visible_char in visible.iter() {
-                        if !layout_borrowed.contains_character(visible_char)
-                            && let Some((spacing_accent, base)) =
-                                decompose_with_spacing_accent(visible_char)
-                        {
-                            if base_char == spacing_accent || base_char == base {
-                                return true;
-                            }
-                            if let Some(shift) = &key_info.shift
-                                && let Some(shift_char) = shift.chars().next()
-                                && (shift_char == spacing_accent || shift_char == base)
-                            {
-                                return true;
-                            }
-                            if let Some(altgr) = &key_info.altgr
-                                && let Some(altgr_char) = altgr.chars().next()
-                                && (altgr_char == spacing_accent || altgr_char == base)
-                            {
-                                return true;
-                            }
-                        }
-                    }
-
-                    false
-                })
+                layout_borrowed.is_key_visible(key_info, visible_keys_borrowed.as_ref())
             };
 
             let should_show_char = |ch: char| -> bool {
@@ -567,7 +522,7 @@ mod imp {
                         &pango_context,
                         x,
                         y,
-                        key_width * 2.0,
+                        KeyKind::Modifier("backspace").width(),
                         key_height,
                         None,
                         Some(&backspace.label),
@@ -591,7 +546,7 @@ mod imp {
                     &pango_context,
                     x,
                     y1,
-                    key_width * 1.5,
+                    KeyKind::Modifier("tab").width(),
                     key_height,
                     None,
                     Some(&tab.label),
@@ -603,7 +558,7 @@ mod imp {
                     &key_border_color,
                     &modifier_color,
                 );
-                x += key_width * 1.5 + key_spacing;
+                x += KeyKind::Modifier("tab").width() + key_spacing;
             }
             if let Some(row) = layout_borrowed.keys.get(1) {
                 for (col, key_info) in row.iter().enumerate() {
@@ -636,7 +591,7 @@ mod imp {
                     &pango_context,
                     x,
                     y1,
-                    key_width * 1.75,
+                    KeyKind::Modifier("enter").width(),
                     enter_height,
                     None,
                     Some(&enter.label),
@@ -659,7 +614,7 @@ mod imp {
                     &pango_context,
                     x,
                     y2,
-                    key_width * 1.75,
+                    KeyKind::Modifier("caps_lock").width(),
                     key_height,
                     None,
                     Some(&caps.label),
@@ -671,7 +626,7 @@ mod imp {
                     &key_border_color,
                     &modifier_color,
                 );
-                x += key_width * 1.75 + key_spacing;
+                x += KeyKind::Modifier("caps_lock").width() + key_spacing;
             }
             if let Some(row) = layout_borrowed.keys.get(2) {
                 for (col, key_info) in row.iter().enumerate() {
@@ -703,7 +658,7 @@ mod imp {
                 let keyboard_right_edge = row0_keys as f32 * key_width
                     + (row0_keys - 1) as f32 * key_spacing
                     + key_spacing
-                    + key_width * 2.0;
+                    + KeyKind::Modifier("backspace").width();
                 let enter_width = keyboard_right_edge - x;
                 Self::draw_single_key(
                     snapshot,
@@ -733,7 +688,7 @@ mod imp {
                     &pango_context,
                     x,
                     y3,
-                    key_width * 1.25,
+                    KeyKind::Modifier("shift_left").width(),
                     key_height,
                     None,
                     Some(&shift_l.label),
@@ -745,7 +700,7 @@ mod imp {
                     &key_border_color,
                     &modifier_color,
                 );
-                x += key_width * 1.25 + key_spacing;
+                x += KeyKind::Modifier("shift_left").width() + key_spacing;
             }
             if let Some(row) = layout_borrowed.keys.get(3) {
                 for (col, key_info) in row.iter().enumerate() {
@@ -775,7 +730,7 @@ mod imp {
                     &pango_context,
                     x,
                     y3,
-                    key_width * 3.0,
+                    KeyKind::Modifier("shift_right").width(),
                     key_height,
                     None,
                     Some(&shift_r.label),
@@ -798,7 +753,7 @@ mod imp {
                     &pango_context,
                     x,
                     y4,
-                    key_width * 1.5,
+                    KeyKind::Modifier("ctrl_left").width(),
                     key_height,
                     None,
                     Some(&ctrl_l.label),
@@ -810,7 +765,7 @@ mod imp {
                     &key_border_color,
                     &modifier_color,
                 );
-                x += key_width * 1.5 + key_spacing;
+                x += KeyKind::Modifier("ctrl_left").width() + key_spacing;
             }
             if let Some(super_l) = layout_borrowed.modifiers.get("super_left") {
                 Self::draw_single_key(
@@ -818,7 +773,7 @@ mod imp {
                     &pango_context,
                     x,
                     y4,
-                    key_width * 1.2,
+                    KeyKind::Modifier("super_left").width(),
                     key_height,
                     None,
                     Some(&super_l.label),
@@ -830,7 +785,7 @@ mod imp {
                     &key_border_color,
                     &modifier_color,
                 );
-                x += key_width * 1.2 + key_spacing;
+                x += KeyKind::Modifier("super_left").width() + key_spacing;
             }
             if let Some(alt_l) = layout_borrowed.modifiers.get("alt_left") {
                 Self::draw_single_key(
@@ -838,7 +793,7 @@ mod imp {
                     &pango_context,
                     x,
                     y4,
-                    key_width * 1.3,
+                    KeyKind::Modifier("alt_left").width(),
                     key_height,
                     None,
                     Some(&alt_l.label),
@@ -850,7 +805,7 @@ mod imp {
                     &key_border_color,
                     &modifier_color,
                 );
-                x += key_width * 1.3 + key_spacing;
+                x += KeyKind::Modifier("alt_left").width() + key_spacing;
             }
             let is_space_current = current.is_some_and(|c| c == ' ');
             let space_label = layout_borrowed.space.label.as_deref().unwrap_or("SPACE");
@@ -859,7 +814,7 @@ mod imp {
                 &pango_context,
                 x,
                 y4,
-                key_width * 6.0,
+                KeyKind::Space.width(),
                 key_height,
                 None,
                 Some(space_label),
@@ -871,14 +826,14 @@ mod imp {
                 &key_border_color,
                 &get_finger_color(&layout_borrowed.space.finger),
             );
-            x += key_width * 6.0 + key_spacing;
+            x += KeyKind::Space.width() + key_spacing;
             if let Some(alt_r) = layout_borrowed.modifiers.get("alt_right") {
                 Self::draw_single_key(
                     snapshot,
                     &pango_context,
                     x,
                     y4,
-                    key_width * 1.3,
+                    KeyKind::Modifier("alt_right").width(),
                     key_height,
                     None,
                     Some(&alt_r.label),
@@ -890,7 +845,7 @@ mod imp {
                     &key_border_color,
                     &modifier_color,
                 );
-                x += key_width * 1.3 + key_spacing;
+                x += KeyKind::Modifier("alt_right").width() + key_spacing;
             }
             if let Some(super_r) = layout_borrowed.modifiers.get("super_right") {
                 Self::draw_single_key(
@@ -898,7 +853,7 @@ mod imp {
                     &pango_context,
                     x,
                     y4,
-                    key_width * 1.2,
+                    KeyKind::Modifier("super_right").width(),
                     key_height,
                     None,
                     Some(&super_r.label),
@@ -910,7 +865,7 @@ mod imp {
                     &key_border_color,
                     &modifier_color,
                 );
-                x += key_width * 1.2 + key_spacing;
+                x += KeyKind::Modifier("super_right").width() + key_spacing;
             }
             if let Some(menu) = layout_borrowed.modifiers.get("menu") {
                 Self::draw_single_key(
@@ -918,7 +873,7 @@ mod imp {
                     &pango_context,
                     x,
                     y4,
-                    key_width * 1.2,
+                    KeyKind::Modifier("menu").width(),
                     key_height,
                     None,
                     Some(&menu.label),
@@ -930,7 +885,7 @@ mod imp {
                     &key_border_color,
                     &modifier_color,
                 );
-                x += key_width * 1.2 + key_spacing;
+                x += KeyKind::Modifier("menu").width() + key_spacing;
             }
             if let Some(ctrl_r) = layout_borrowed.modifiers.get("ctrl_right") {
                 Self::draw_single_key(
@@ -938,7 +893,7 @@ mod imp {
                     &pango_context,
                     x,
                     y4,
-                    key_width * 1.5,
+                    KeyKind::Modifier("ctrl_right").width(),
                     key_height,
                     None,
                     Some(&ctrl_r.label),
