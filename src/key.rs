@@ -1,4 +1,4 @@
-use crate::keyboard_layout::{Finger, KeyInfo};
+use crate::keyboard_layout::{KeyFinger, KeyInfo};
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
@@ -210,7 +210,7 @@ impl Key {
     }
 
     /// The space bar, coloured by the thumb that presses it.
-    pub fn space(entry: KeyEntry, label: &str, finger: Finger) -> Self {
+    pub fn space(entry: KeyEntry, label: &str, finger: KeyFinger) -> Self {
         let key = Self::from_entry(entry);
         key.add_css_class(&finger.css_class());
         key.add_label(label, "caption", gtk::Align::Center, gtk::Align::Center);

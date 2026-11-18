@@ -7,7 +7,7 @@ use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum Finger {
+pub enum KeyFinger {
     LeftPinky,
     LeftRing,
     LeftMiddle,
@@ -21,20 +21,20 @@ pub enum Finger {
     BothThumbs,
 }
 
-impl Finger {
+impl KeyFinger {
     pub fn hand(&self) -> Option<&str> {
         match self {
-            Finger::LeftPinky
-            | Finger::LeftRing
-            | Finger::LeftMiddle
-            | Finger::LeftIndex
-            | Finger::LeftThumb => Some("left"),
-            Finger::RightIndex
-            | Finger::RightMiddle
-            | Finger::RightRing
-            | Finger::RightPinky
-            | Finger::RightThumb => Some("right"),
-            Finger::BothThumbs => None,
+            KeyFinger::LeftPinky
+            | KeyFinger::LeftRing
+            | KeyFinger::LeftMiddle
+            | KeyFinger::LeftIndex
+            | KeyFinger::LeftThumb => Some("left"),
+            KeyFinger::RightIndex
+            | KeyFinger::RightMiddle
+            | KeyFinger::RightRing
+            | KeyFinger::RightPinky
+            | KeyFinger::RightThumb => Some("right"),
+            KeyFinger::BothThumbs => None,
         }
     }
 
@@ -43,50 +43,50 @@ impl Finger {
         format!("finger-{}", self.to_string().replace('_', "-"))
     }
 
-    pub fn opposite_thumb(&self) -> Finger {
+    pub fn opposite_thumb(&self) -> KeyFinger {
         match self.hand() {
-            Some("left") => Finger::RightThumb,
-            Some("right") => Finger::LeftThumb,
-            _ => Finger::RightThumb,
+            Some("left") => KeyFinger::RightThumb,
+            Some("right") => KeyFinger::LeftThumb,
+            _ => KeyFinger::RightThumb,
         }
     }
 }
 
-impl FromStr for Finger {
+impl FromStr for KeyFinger {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "left_pinky" => Ok(Finger::LeftPinky),
-            "left_ring" => Ok(Finger::LeftRing),
-            "left_middle" => Ok(Finger::LeftMiddle),
-            "left_index" => Ok(Finger::LeftIndex),
-            "left_thumb" => Ok(Finger::LeftThumb),
-            "right_index" => Ok(Finger::RightIndex),
-            "right_middle" => Ok(Finger::RightMiddle),
-            "right_ring" => Ok(Finger::RightRing),
-            "right_pinky" => Ok(Finger::RightPinky),
-            "right_thumb" => Ok(Finger::RightThumb),
-            "both_thumbs" => Ok(Finger::BothThumbs),
+            "left_pinky" => Ok(KeyFinger::LeftPinky),
+            "left_ring" => Ok(KeyFinger::LeftRing),
+            "left_middle" => Ok(KeyFinger::LeftMiddle),
+            "left_index" => Ok(KeyFinger::LeftIndex),
+            "left_thumb" => Ok(KeyFinger::LeftThumb),
+            "right_index" => Ok(KeyFinger::RightIndex),
+            "right_middle" => Ok(KeyFinger::RightMiddle),
+            "right_ring" => Ok(KeyFinger::RightRing),
+            "right_pinky" => Ok(KeyFinger::RightPinky),
+            "right_thumb" => Ok(KeyFinger::RightThumb),
+            "both_thumbs" => Ok(KeyFinger::BothThumbs),
             _ => Err(format!("Unknown finger: {}", s)),
         }
     }
 }
 
-impl fmt::Display for Finger {
+impl fmt::Display for KeyFinger {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
-            Finger::LeftPinky => "left_pinky",
-            Finger::LeftRing => "left_ring",
-            Finger::LeftMiddle => "left_middle",
-            Finger::LeftIndex => "left_index",
-            Finger::LeftThumb => "left_thumb",
-            Finger::RightIndex => "right_index",
-            Finger::RightMiddle => "right_middle",
-            Finger::RightRing => "right_ring",
-            Finger::RightPinky => "right_pinky",
-            Finger::RightThumb => "right_thumb",
-            Finger::BothThumbs => "both_thumbs",
+            KeyFinger::LeftPinky => "left_pinky",
+            KeyFinger::LeftRing => "left_ring",
+            KeyFinger::LeftMiddle => "left_middle",
+            KeyFinger::LeftIndex => "left_index",
+            KeyFinger::LeftThumb => "left_thumb",
+            KeyFinger::RightIndex => "right_index",
+            KeyFinger::RightMiddle => "right_middle",
+            KeyFinger::RightRing => "right_ring",
+            KeyFinger::RightPinky => "right_pinky",
+            KeyFinger::RightThumb => "right_thumb",
+            KeyFinger::BothThumbs => "both_thumbs",
         };
         write!(f, "{}", s)
     }
@@ -99,7 +99,7 @@ pub struct KeyInfo {
     pub label: Option<String>,
     pub shift: Option<String>,
     pub altgr: Option<String>,
-    pub finger: Finger,
+    pub finger: KeyFinger,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -113,14 +113,14 @@ pub enum KeyLevel {
 pub struct ResolvedKey {
     pub row: usize,
     pub col: usize,
-    pub finger: Finger,
+    pub finger: KeyFinger,
     pub level: KeyLevel,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModifierKey {
     pub label: String,
-    pub finger: Finger,
+    pub finger: KeyFinger,
     #[serde(default)]
     pub rows: Option<Vec<u8>>,
 }
@@ -160,7 +160,7 @@ impl KeyboardLayout {
         Ok(serde_json::from_str(json_data)?)
     }
 
-    pub fn get_finger_for_char(&self, ch: char) -> Option<Finger> {
+    pub fn get_finger_for_char(&self, ch: char) -> Option<KeyFinger> {
         if ch == ' ' {
             return Some(self.space.finger);
         }
@@ -311,7 +311,7 @@ impl KeyboardLayout {
         entries
     }
 
-    pub fn modifier_finger_for(&self, target: &ResolvedKey) -> Option<Finger> {
+    pub fn modifier_finger_for(&self, target: &ResolvedKey) -> Option<KeyFinger> {
         self.modifier_keys_for(target)
             .first()
             .and_then(|name| self.modifiers.get(*name))
@@ -333,21 +333,21 @@ impl Default for KeyboardLayout {
                     label: None,
                     shift: Some("Q".to_string()),
                     altgr: None,
-                    finger: Finger::LeftPinky,
+                    finger: KeyFinger::LeftPinky,
                 },
                 KeyInfo {
                     base: "w".to_string(),
                     label: None,
                     shift: Some("W".to_string()),
                     altgr: None,
-                    finger: Finger::LeftRing,
+                    finger: KeyFinger::LeftRing,
                 },
                 KeyInfo {
                     base: "e".to_string(),
                     label: None,
                     shift: Some("E".to_string()),
                     altgr: None,
-                    finger: Finger::LeftMiddle,
+                    finger: KeyFinger::LeftMiddle,
                 },
             ]],
             space: KeyInfo {
@@ -355,7 +355,7 @@ impl Default for KeyboardLayout {
                 label: Some("SPACE".to_string()),
                 shift: None,
                 altgr: None,
-                finger: Finger::BothThumbs,
+                finger: KeyFinger::BothThumbs,
             },
             modifiers: HashMap::new(),
         })
@@ -484,18 +484,18 @@ mod tests {
         let layout = KeyboardLayout::load_from_json(crate::language::Language::Us).unwrap();
 
         // Test base characters
-        assert_eq!(layout.get_finger_for_char('a'), Some(Finger::LeftPinky));
-        assert_eq!(layout.get_finger_for_char('A'), Some(Finger::LeftPinky));
-        assert_eq!(layout.get_finger_for_char('f'), Some(Finger::LeftIndex));
-        assert_eq!(layout.get_finger_for_char('j'), Some(Finger::RightIndex));
-        assert_eq!(layout.get_finger_for_char('l'), Some(Finger::RightRing));
+        assert_eq!(layout.get_finger_for_char('a'), Some(KeyFinger::LeftPinky));
+        assert_eq!(layout.get_finger_for_char('A'), Some(KeyFinger::LeftPinky));
+        assert_eq!(layout.get_finger_for_char('f'), Some(KeyFinger::LeftIndex));
+        assert_eq!(layout.get_finger_for_char('j'), Some(KeyFinger::RightIndex));
+        assert_eq!(layout.get_finger_for_char('l'), Some(KeyFinger::RightRing));
 
         // Test space
-        assert_eq!(layout.get_finger_for_char(' '), Some(Finger::BothThumbs));
+        assert_eq!(layout.get_finger_for_char(' '), Some(KeyFinger::BothThumbs));
 
         // Test shift characters
-        assert_eq!(layout.get_finger_for_char('!'), Some(Finger::LeftPinky));
-        assert_eq!(layout.get_finger_for_char('@'), Some(Finger::LeftRing));
+        assert_eq!(layout.get_finger_for_char('!'), Some(KeyFinger::LeftPinky));
+        assert_eq!(layout.get_finger_for_char('@'), Some(KeyFinger::LeftRing));
 
         // Test character not in layout
         assert_eq!(layout.get_finger_for_char('Ñ'), None);
@@ -506,15 +506,15 @@ mod tests {
         let layout = KeyboardLayout::load_from_json(crate::language::Language::Es).unwrap();
 
         // Test Spanish-specific characters
-        assert_eq!(layout.get_finger_for_char('ñ'), Some(Finger::RightPinky));
-        assert_eq!(layout.get_finger_for_char('Ñ'), Some(Finger::RightPinky));
+        assert_eq!(layout.get_finger_for_char('ñ'), Some(KeyFinger::RightPinky));
+        assert_eq!(layout.get_finger_for_char('Ñ'), Some(KeyFinger::RightPinky));
 
         // Test base characters
-        assert_eq!(layout.get_finger_for_char('a'), Some(Finger::LeftPinky));
-        assert_eq!(layout.get_finger_for_char('s'), Some(Finger::LeftRing));
+        assert_eq!(layout.get_finger_for_char('a'), Some(KeyFinger::LeftPinky));
+        assert_eq!(layout.get_finger_for_char('s'), Some(KeyFinger::LeftRing));
 
         // Test space
-        assert_eq!(layout.get_finger_for_char(' '), Some(Finger::BothThumbs));
+        assert_eq!(layout.get_finger_for_char(' '), Some(KeyFinger::BothThumbs));
     }
 
     fn create_test_layout() -> KeyboardLayout {
@@ -526,21 +526,21 @@ mod tests {
                     label: None,
                     shift: Some("\"".to_string()),
                     altgr: Some("´".to_string()),
-                    finger: Finger::RightPinky,
+                    finger: KeyFinger::RightPinky,
                 },
                 KeyInfo {
                     base: "9".to_string(),
                     label: None,
                     shift: Some("(".to_string()),
                     altgr: Some("'".to_string()),
-                    finger: Finger::RightRing,
+                    finger: KeyFinger::RightRing,
                 },
                 KeyInfo {
                     base: "0".to_string(),
                     label: None,
                     shift: Some(")".to_string()),
                     altgr: Some("'".to_string()),
-                    finger: Finger::RightPinky,
+                    finger: KeyFinger::RightPinky,
                 },
             ]],
             modifiers: std::collections::HashMap::new(),
@@ -549,7 +549,7 @@ mod tests {
                 label: None,
                 shift: None,
                 altgr: None,
-                finger: Finger::BothThumbs,
+                finger: KeyFinger::BothThumbs,
             },
         }
     }
@@ -591,7 +591,7 @@ mod tests {
             label: None,
             shift: None,
             altgr: None,
-            finger: Finger::LeftPinky,
+            finger: KeyFinger::LeftPinky,
         });
         assert_eq!(resolve(&layout, 'a'), (0, 3, KeyLevel::Base));
         assert_eq!(resolve(&layout, 'A'), (0, 3, KeyLevel::Shift));
@@ -657,7 +657,7 @@ mod tests {
         assert_eq!(layout.modifier_keys_for(&target), vec!["alt_right"]);
         assert_eq!(
             layout.modifier_finger_for(&target),
-            Some(Finger::RightThumb)
+            Some(KeyFinger::RightThumb)
         );
     }
 
@@ -667,7 +667,7 @@ mod tests {
         let target = layout.resolve_char('A').unwrap();
         assert_eq!(
             layout.modifier_finger_for(&target),
-            Some(Finger::RightPinky)
+            Some(KeyFinger::RightPinky)
         );
     }
 
@@ -677,7 +677,7 @@ mod tests {
         let target = ResolvedKey {
             row: 0,
             col: 0,
-            finger: Finger::BothThumbs,
+            finger: KeyFinger::BothThumbs,
             level: KeyLevel::Shift,
         };
         assert_eq!(
@@ -785,17 +785,17 @@ mod tests {
     #[test]
     fn test_finger_css_class() {
         let expected = [
-            (Finger::LeftPinky, "finger-left-pinky"),
-            (Finger::LeftRing, "finger-left-ring"),
-            (Finger::LeftMiddle, "finger-left-middle"),
-            (Finger::LeftIndex, "finger-left-index"),
-            (Finger::LeftThumb, "finger-left-thumb"),
-            (Finger::RightIndex, "finger-right-index"),
-            (Finger::RightMiddle, "finger-right-middle"),
-            (Finger::RightRing, "finger-right-ring"),
-            (Finger::RightPinky, "finger-right-pinky"),
-            (Finger::RightThumb, "finger-right-thumb"),
-            (Finger::BothThumbs, "finger-both-thumbs"),
+            (KeyFinger::LeftPinky, "finger-left-pinky"),
+            (KeyFinger::LeftRing, "finger-left-ring"),
+            (KeyFinger::LeftMiddle, "finger-left-middle"),
+            (KeyFinger::LeftIndex, "finger-left-index"),
+            (KeyFinger::LeftThumb, "finger-left-thumb"),
+            (KeyFinger::RightIndex, "finger-right-index"),
+            (KeyFinger::RightMiddle, "finger-right-middle"),
+            (KeyFinger::RightRing, "finger-right-ring"),
+            (KeyFinger::RightPinky, "finger-right-pinky"),
+            (KeyFinger::RightThumb, "finger-right-thumb"),
+            (KeyFinger::BothThumbs, "finger-both-thumbs"),
         ];
         for (finger, class) in expected {
             assert_eq!(finger.css_class(), class);

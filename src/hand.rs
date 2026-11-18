@@ -1,5 +1,5 @@
 use crate::finger::{FingerKind, FingerWidget};
-use crate::keyboard_layout::Finger;
+use crate::keyboard_layout::KeyFinger;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{glib, graphene, gsk};
@@ -28,18 +28,18 @@ impl Side {
     }
 
     /// The finger of this hand that `kind` stands for.
-    pub fn finger(&self, kind: FingerKind) -> Finger {
+    pub fn finger(&self, kind: FingerKind) -> KeyFinger {
         match (self, kind) {
-            (Side::Left, FingerKind::Pinky) => Finger::LeftPinky,
-            (Side::Left, FingerKind::Ring) => Finger::LeftRing,
-            (Side::Left, FingerKind::Middle) => Finger::LeftMiddle,
-            (Side::Left, FingerKind::Index) => Finger::LeftIndex,
-            (Side::Left, FingerKind::Thumb) => Finger::LeftThumb,
-            (Side::Right, FingerKind::Pinky) => Finger::RightPinky,
-            (Side::Right, FingerKind::Ring) => Finger::RightRing,
-            (Side::Right, FingerKind::Middle) => Finger::RightMiddle,
-            (Side::Right, FingerKind::Index) => Finger::RightIndex,
-            (Side::Right, FingerKind::Thumb) => Finger::RightThumb,
+            (Side::Left, FingerKind::Pinky) => KeyFinger::LeftPinky,
+            (Side::Left, FingerKind::Ring) => KeyFinger::LeftRing,
+            (Side::Left, FingerKind::Middle) => KeyFinger::LeftMiddle,
+            (Side::Left, FingerKind::Index) => KeyFinger::LeftIndex,
+            (Side::Left, FingerKind::Thumb) => KeyFinger::LeftThumb,
+            (Side::Right, FingerKind::Pinky) => KeyFinger::RightPinky,
+            (Side::Right, FingerKind::Ring) => KeyFinger::RightRing,
+            (Side::Right, FingerKind::Middle) => KeyFinger::RightMiddle,
+            (Side::Right, FingerKind::Index) => KeyFinger::RightIndex,
+            (Side::Right, FingerKind::Thumb) => KeyFinger::RightThumb,
         }
     }
 }
@@ -377,8 +377,8 @@ mod tests {
 
     #[test]
     fn test_side_fingers() {
-        assert_eq!(Side::Left.finger(FingerKind::Pinky), Finger::LeftPinky);
-        assert_eq!(Side::Right.finger(FingerKind::Thumb), Finger::RightThumb);
+        assert_eq!(Side::Left.finger(FingerKind::Pinky), KeyFinger::LeftPinky);
+        assert_eq!(Side::Right.finger(FingerKind::Thumb), KeyFinger::RightThumb);
         for kind in FingerKind::ALL {
             assert_eq!(Side::Left.finger(kind).hand(), Some("left"));
             assert_eq!(Side::Right.finger(kind).hand(), Some("right"));

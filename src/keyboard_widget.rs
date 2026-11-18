@@ -1,5 +1,5 @@
 use crate::key::{Key, KeyKind};
-use crate::keyboard_layout::{Finger, KeyboardLayout, ResolvedKey};
+use crate::keyboard_layout::{KeyFinger, KeyboardLayout, ResolvedKey};
 use crate::keyboard_layout_manager::KeyboardLayoutManager;
 use crate::utils::decompose_with_spacing_accent;
 use gtk::glib;
@@ -20,7 +20,7 @@ mod imp {
         pub current_key_sequence: RefCell<Vec<char>>,
         pub sequence_index: RefCell<usize>,
         pub layout: RefCell<KeyboardLayout>,
-        pub last_finger: RefCell<Option<Finger>>,
+        pub last_finger: RefCell<Option<KeyFinger>>,
         /// The key widgets, in the order of `KeyboardLayout::key_entries`.
         pub keys: RefCell<Vec<Key>>,
         pub settings: RefCell<Option<gio::Settings>>,
@@ -201,7 +201,7 @@ impl KeyboardWidget {
         if let Some(ch) = key
             && ch != ' '
             && let Some(finger) = imp.layout.borrow().get_finger_for_char(ch)
-            && finger != Finger::BothThumbs
+            && finger != KeyFinger::BothThumbs
         {
             *imp.last_finger.borrow_mut() = Some(finger);
         }
@@ -222,7 +222,7 @@ impl KeyboardWidget {
         self.set_target_char(Some(next));
 
         if let Some(finger) = imp.layout.borrow().get_finger_for_char(next)
-            && finger != Finger::BothThumbs
+            && finger != KeyFinger::BothThumbs
         {
             *imp.last_finger.borrow_mut() = Some(finger);
         }
@@ -235,12 +235,12 @@ impl KeyboardWidget {
         *imp.current_target.borrow_mut() = ch.and_then(|c| imp.layout.borrow().resolve_char(c));
     }
 
-    pub fn current_finger(&self) -> Option<Finger> {
+    pub fn current_finger(&self) -> Option<KeyFinger> {
         let current = *self.imp().current_key.borrow();
         current.and_then(|ch| self.get_finger_for_char(ch))
     }
 
-    pub fn current_modifier_finger(&self) -> Option<Finger> {
+    pub fn current_modifier_finger(&self) -> Option<KeyFinger> {
         let imp = self.imp();
         let target = *imp.current_target.borrow();
         target.and_then(|t| imp.layout.borrow().modifier_finger_for(&t))
@@ -252,7 +252,7 @@ impl KeyboardWidget {
         imp.update_key_states();
     }
 
-    pub fn get_finger_for_char(&self, ch: char) -> Option<Finger> {
+    pub fn get_finger_for_char(&self, ch: char) -> Option<KeyFinger> {
         let imp = self.imp();
 
         // Special handling for space - use opposite thumb based on last finger
@@ -261,7 +261,7 @@ impl KeyboardWidget {
             return Some(
                 last_finger
                     .as_ref()
-                    .map_or(Finger::RightThumb, |f| f.opposite_thumb()),
+                    .map_or(KeyFinger::RightThumb, |f| f.opposite_thumb()),
             );
         }
 

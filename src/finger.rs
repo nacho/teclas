@@ -1,4 +1,4 @@
-use crate::keyboard_layout::Finger;
+use crate::keyboard_layout::KeyFinger;
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
@@ -43,7 +43,7 @@ mod imp {
     #[derive(Default)]
     pub struct FingerWidget {
         pub kind: Cell<FingerKind>,
-        pub finger: Cell<Option<Finger>>,
+        pub finger: Cell<Option<KeyFinger>>,
     }
 
     #[glib::object_subclass]
@@ -83,7 +83,7 @@ glib::wrapper! {
 }
 
 impl FingerWidget {
-    pub fn new(kind: FingerKind, finger: Finger) -> Self {
+    pub fn new(kind: FingerKind, finger: KeyFinger) -> Self {
         let widget: Self = glib::Object::new();
         let imp = widget.imp();
         imp.kind.set(kind);
@@ -100,7 +100,7 @@ impl FingerWidget {
         self.imp().kind.get()
     }
 
-    pub fn finger(&self) -> Option<Finger> {
+    pub fn finger(&self) -> Option<KeyFinger> {
         self.imp().finger.get()
     }
 

@@ -1,6 +1,6 @@
 use crate::finger::FingerWidget;
 use crate::hand::{Hand, Side};
-use crate::keyboard_layout::Finger;
+use crate::keyboard_layout::KeyFinger;
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
@@ -10,11 +10,11 @@ use std::cell::{Cell, RefCell};
 /// `(current, modifier)`. `BothThumbs` stands for both thumbs, and a finger
 /// that is current is never also marked as the modifier finger.
 pub fn finger_states(
-    current: Option<Finger>,
-    modifier: Option<Finger>,
-) -> (Vec<Finger>, Vec<Finger>) {
-    let expand = |finger: Option<Finger>| match finger {
-        Some(Finger::BothThumbs) => vec![Finger::LeftThumb, Finger::RightThumb],
+    current: Option<KeyFinger>,
+    modifier: Option<KeyFinger>,
+) -> (Vec<KeyFinger>, Vec<KeyFinger>) {
+    let expand = |finger: Option<KeyFinger>| match finger {
+        Some(KeyFinger::BothThumbs) => vec![KeyFinger::LeftThumb, KeyFinger::RightThumb],
         Some(finger) => vec![finger],
         None => Vec::new(),
     };
@@ -31,8 +31,8 @@ mod imp {
 
     #[derive(Default)]
     pub struct HandWidget {
-        pub current_finger: Cell<Option<Finger>>,
-        pub modifier_finger: Cell<Option<Finger>>,
+        pub current_finger: Cell<Option<KeyFinger>>,
+        pub modifier_finger: Cell<Option<KeyFinger>>,
         pub hands: RefCell<Vec<Hand>>,
         pub settings: RefCell<Option<gtk::gio::Settings>>,
     }
@@ -130,13 +130,13 @@ impl HandWidget {
         glib::Object::new()
     }
 
-    pub fn set_current_finger(&self, finger: Option<Finger>) {
+    pub fn set_current_finger(&self, finger: Option<KeyFinger>) {
         let imp = self.imp();
         imp.current_finger.set(finger);
         imp.update_finger_states();
     }
 
-    pub fn set_modifier_finger(&self, finger: Option<Finger>) {
+    pub fn set_modifier_finger(&self, finger: Option<KeyFinger>) {
         let imp = self.imp();
         imp.modifier_finger.set(finger);
         imp.update_finger_states();
@@ -161,36 +161,36 @@ mod tests {
     #[test]
     fn test_finger_states_both_thumbs() {
         assert_eq!(
-            finger_states(Some(Finger::BothThumbs), None),
-            (vec![Finger::LeftThumb, Finger::RightThumb], vec![])
+            finger_states(Some(KeyFinger::BothThumbs), None),
+            (vec![KeyFinger::LeftThumb, KeyFinger::RightThumb], vec![])
         );
     }
 
     #[test]
     fn test_finger_states_current_wins_over_modifier() {
         assert_eq!(
-            finger_states(Some(Finger::LeftPinky), Some(Finger::LeftPinky)),
-            (vec![Finger::LeftPinky], vec![])
+            finger_states(Some(KeyFinger::LeftPinky), Some(KeyFinger::LeftPinky)),
+            (vec![KeyFinger::LeftPinky], vec![])
         );
         assert_eq!(
-            finger_states(Some(Finger::BothThumbs), Some(Finger::RightThumb)),
-            (vec![Finger::LeftThumb, Finger::RightThumb], vec![])
+            finger_states(Some(KeyFinger::BothThumbs), Some(KeyFinger::RightThumb)),
+            (vec![KeyFinger::LeftThumb, KeyFinger::RightThumb], vec![])
         );
     }
 
     #[test]
     fn test_finger_states_modifier_on_the_other_hand() {
         assert_eq!(
-            finger_states(Some(Finger::LeftIndex), Some(Finger::RightPinky)),
-            (vec![Finger::LeftIndex], vec![Finger::RightPinky])
+            finger_states(Some(KeyFinger::LeftIndex), Some(KeyFinger::RightPinky)),
+            (vec![KeyFinger::LeftIndex], vec![KeyFinger::RightPinky])
         );
     }
 
     #[test]
     fn test_finger_states_modifier_only() {
         assert_eq!(
-            finger_states(None, Some(Finger::RightThumb)),
-            (vec![], vec![Finger::RightThumb])
+            finger_states(None, Some(KeyFinger::RightThumb)),
+            (vec![], vec![KeyFinger::RightThumb])
         );
     }
 }
