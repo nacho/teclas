@@ -109,11 +109,6 @@ impl KeyEntry {
     }
 }
 
-/// CSS class carrying the colour of the finger that presses a key.
-fn finger_css_class(finger: Finger) -> String {
-    format!("finger-{}", finger.to_string().replace('_', "-"))
-}
-
 mod imp {
     use super::*;
 
@@ -185,7 +180,7 @@ impl Key {
     /// A key that types a character, with its finger colour class.
     pub fn character(entry: KeyEntry, info: &KeyInfo) -> Self {
         let key = Self::from_entry(entry);
-        key.add_css_class(&finger_css_class(info.finger));
+        key.add_css_class(&info.finger.css_class());
 
         if info.base.chars().next().is_some_and(char::is_alphabetic) {
             key.add_label(
@@ -217,7 +212,7 @@ impl Key {
     /// The space bar, coloured by the thumb that presses it.
     pub fn space(entry: KeyEntry, label: &str, finger: Finger) -> Self {
         let key = Self::from_entry(entry);
-        key.add_css_class(&finger_css_class(finger));
+        key.add_css_class(&finger.css_class());
         key.add_label(label, "caption", gtk::Align::Center, gtk::Align::Center);
         key
     }
@@ -302,11 +297,5 @@ mod tests {
         assert_eq!(key_height(0), KEY_SIZE);
         assert_eq!(key_height(1), KEY_SIZE);
         assert_eq!(key_height(2), 2.0 * KEY_SIZE + KEY_SPACING);
-    }
-
-    #[test]
-    fn test_finger_css_class() {
-        assert_eq!(finger_css_class(Finger::LeftPinky), "finger-left-pinky");
-        assert_eq!(finger_css_class(Finger::BothThumbs), "finger-both-thumbs");
     }
 }

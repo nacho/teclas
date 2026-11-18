@@ -156,16 +156,12 @@ mod imp {
                 Finger::RightThumb,
                 Finger::BothThumbs,
             ] {
-                let class_name = Self::get_finger_css_class(&finger);
+                let class_name = finger.css_class();
                 let color_name = format!("{}-color", class_name);
                 colors.insert(class_name, lookup(&color_name));
             }
 
             *self.cached_colors.borrow_mut() = Some(colors);
-        }
-
-        fn get_finger_css_class(finger: &Finger) -> String {
-            format!("finger-{}", finger.to_string().replace('_', "-"))
         }
 
         fn draw_hand(
@@ -255,7 +251,7 @@ mod imp {
                 } else if modifier == Some(finger_enum) {
                     (modifier_fill, modifier_border)
                 } else if use_finger_colors {
-                    let class_name = Self::get_finger_css_class(&finger_enum);
+                    let class_name = finger_enum.css_class();
                     let c = colors.get(&class_name).copied().unwrap_or(default_color);
                     (c, default_border)
                 } else {
@@ -288,7 +284,7 @@ mod imp {
                 } else if modifier == Some(thumb_enum) {
                     (modifier_fill, modifier_border)
                 } else if use_finger_colors {
-                    let class_name = Self::get_finger_css_class(&thumb_enum);
+                    let class_name = thumb_enum.css_class();
                     let c = colors.get(&class_name).copied().unwrap_or(default_color);
                     (c, default_border)
                 } else {

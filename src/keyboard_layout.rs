@@ -38,6 +38,11 @@ impl Finger {
         }
     }
 
+    /// CSS class carrying the colour of this finger, e.g. `finger-left-pinky`.
+    pub fn css_class(&self) -> String {
+        format!("finger-{}", self.to_string().replace('_', "-"))
+    }
+
     pub fn opposite_thumb(&self) -> Finger {
         match self.hand() {
             Some("left") => Finger::RightThumb,
@@ -775,5 +780,25 @@ mod tests {
         assert!(layout.is_key_visible(&key_for(&layout, 'a'), Some(&visible)));
         assert!(layout.is_key_visible(&key_for(&layout, '´'), Some(&visible)));
         assert!(!layout.is_key_visible(&key_for(&layout, 'q'), Some(&visible)));
+    }
+
+    #[test]
+    fn test_finger_css_class() {
+        let expected = [
+            (Finger::LeftPinky, "finger-left-pinky"),
+            (Finger::LeftRing, "finger-left-ring"),
+            (Finger::LeftMiddle, "finger-left-middle"),
+            (Finger::LeftIndex, "finger-left-index"),
+            (Finger::LeftThumb, "finger-left-thumb"),
+            (Finger::RightIndex, "finger-right-index"),
+            (Finger::RightMiddle, "finger-right-middle"),
+            (Finger::RightRing, "finger-right-ring"),
+            (Finger::RightPinky, "finger-right-pinky"),
+            (Finger::RightThumb, "finger-right-thumb"),
+            (Finger::BothThumbs, "finger-both-thumbs"),
+        ];
+        for (finger, class) in expected {
+            assert_eq!(finger.css_class(), class);
+        }
     }
 }
