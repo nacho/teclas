@@ -79,9 +79,9 @@ Schema ID: `io.github.nacho.teclas.state.window`
 
 ```rust
 // Set the currently highlighted key
-fn set_current_key(&self, key: &str)
+fn set_current_key(&self, key: Option<char>)
 // Set which keys are visible/relevant for current lesson step
-fn set_visible_keys(&self, keys: &HashSet<char>)
+fn set_visible_keys(&self, keys: Option<HashSet<char>>)
 // Advance dead key sequence (accent → base character)
 fn advance_sequence(&self)
 // Get finger assignment for a character

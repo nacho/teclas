@@ -1,23 +1,12 @@
-use crate::key::{KEY_SIZE, KEY_SPACING, KeyKind};
-use crate::keyboard_layout::{Finger, KeyInfo, KeyboardLayout, ResolvedKey};
+use crate::key::{Key, KeyKind};
+use crate::keyboard_layout::{Finger, KeyboardLayout, ResolvedKey};
+use crate::keyboard_layout_manager::KeyboardLayoutManager;
 use crate::utils::decompose_with_spacing_accent;
-use gtk::gdk;
 use gtk::glib;
-use gtk::pango;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
-use gtk::{graphene, gsk};
-use libadwaita as adw;
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 use std::collections::HashSet;
-
-/// Corner radius (in px) for on-screen keyboard keys, matching the small
-/// rounding used across Adwaita widgets.
-const KEY_CORNER_RADIUS: f32 = 5.0;
-
-/// Border width (in px) for on-screen keyboard keys.
-const KEY_BORDER_WIDTH: f32 = 1.0;
 
 mod imp {
     use super::*;
@@ -32,7 +21,8 @@ mod imp {
         pub sequence_index: RefCell<usize>,
         pub layout: RefCell<KeyboardLayout>,
         pub last_finger: RefCell<Option<Finger>>,
-        pub cached_colors: RefCell<Option<HashMap<String, gdk::RGBA>>>,
+        /// The key widgets, in the order of `KeyboardLayout::key_entries`.
+        pub keys: RefCell<Vec<Key>>,
         pub settings: RefCell<Option<gio::Settings>>,
         /// Keyboard-layout language, set by the window.
         #[property(get, set = Self::set_layout_language_prop, builder(crate::language::Language::default()))]
@@ -44,91 +34,47 @@ mod imp {
         const NAME: &'static str = "TeclasKeyboardWidget";
         type Type = super::KeyboardWidget;
         type ParentType = gtk::Widget;
+
+        fn class_init(klass: &mut Self::Class) {
+            klass.set_css_name("keyboard");
+            klass.set_layout_manager_type::<KeyboardLayoutManager>();
+            klass.set_accessible_role(gtk::AccessibleRole::Presentation);
+        }
     }
 
     #[glib::derived_properties]
     impl ObjectImpl for KeyboardWidget {
         fn constructed(&self) {
             self.parent_constructed();
-            // Safe default; the window sets the real layout via `layout-code`.
+            // Safe default; the window sets the real layout via `layout-language`.
             *self.layout.borrow_mut() = KeyboardLayout::default();
+            self.rebuild_keys();
 
-            glib::idle_add_local_once(glib::clone!(
-                #[weak(rename_to = this)]
-                self,
-                move || {
-                    this.cache_colors();
-                }
-            ));
-
-            // Re-cache colors when theme changes
-            let style_manager = adw::StyleManager::default();
-            style_manager.connect_dark_notify(glib::clone!(
-                #[weak(rename_to = this)]
-                self,
-                move |_| {
-                    glib::idle_add_local_once(glib::clone!(move || {
-                        this.cache_colors();
-                        this.obj().queue_draw();
-                    }));
-                }
-            ));
-
-            // Redraw when the finger-colors preference changes
+            // Colour the keys by finger when the preference is on.
             let settings = gio::Settings::new(crate::config::APPLICATION_ID);
+            self.sync_finger_colors(&settings);
             settings.connect_changed(
                 Some("use-finger-colors"),
                 glib::clone!(
                     #[weak(rename_to = this)]
                     self,
-                    move |_, _| {
-                        this.obj().queue_draw();
+                    move |settings, _| {
+                        this.sync_finger_colors(settings);
                     }
                 ),
             );
             // Keep the settings object alive so the signal stays connected.
             self.settings.replace(Some(settings));
         }
-    }
 
-    impl WidgetImpl for KeyboardWidget {
-        fn snapshot(&self, snapshot: &gtk::Snapshot) {
-            let widget = self.obj();
-            let width = widget.width() as f32;
-            let height = widget.height() as f32;
-
-            if width <= 0.0 || height <= 0.0 {
-                return;
-            }
-
-            // Ensure colors are cached before drawing. The initial caching is
-            // scheduled on an idle callback in `constructed`, but the widget can
-            // be snapshotted before that callback runs (e.g. when the app opens
-            // directly on a page containing this widget), so cache on demand.
-            if self.cached_colors.borrow().is_none() {
-                self.cache_colors();
-            }
-
-            Self::draw_keyboard(
-                snapshot,
-                &widget,
-                &self.current_key,
-                &self.current_target,
-                &self.layout,
-                &self.visible_keys,
-                &self.cached_colors,
-            );
-        }
-
-        fn measure(&self, orientation: gtk::Orientation, _for_size: i32) -> (i32, i32, i32, i32) {
-            let (width, height) = Self::calculate_size(&self.layout.borrow());
-            match orientation {
-                gtk::Orientation::Horizontal => (width, width, -1, -1),
-                gtk::Orientation::Vertical => (height, height, -1, -1),
-                _ => (0, 0, -1, -1),
+        fn dispose(&self) {
+            for key in self.keys.take() {
+                key.unparent();
             }
         }
     }
+
+    impl WidgetImpl for KeyboardWidget {}
 
     impl KeyboardWidget {
         /// `layout-language` setter: load the matching layout JSON directly.
@@ -138,773 +84,87 @@ mod imp {
             *self.current_target.borrow_mut() = current.and_then(|c| layout.resolve_char(c));
             *self.layout.borrow_mut() = layout;
             self.layout_language.set(language);
-            let obj = self.obj();
-            obj.queue_resize();
-            obj.queue_draw();
+            self.rebuild_keys();
         }
 
-        fn cache_colors(&self) {
-            let widget = self.obj();
-            #[allow(deprecated)]
-            let style_context = widget.style_context();
+        fn sync_finger_colors(&self, settings: &gio::Settings) {
+            let obj = self.obj();
+            if settings.boolean("use-finger-colors") {
+                obj.add_css_class("finger-colors");
+            } else {
+                obj.remove_css_class("finger-colors");
+            }
+        }
 
-            #[allow(deprecated)]
-            let lookup = |color_name: &str| -> gdk::RGBA {
-                style_context
-                    .lookup_color(color_name)
-                    .unwrap_or_else(|| gdk::RGBA::new(0.0, 0.0, 0.0, 1.0))
-            };
-
-            let mut colors = HashMap::new();
-            colors.insert(
-                "keyboard-modifier".to_string(),
-                lookup("keyboard-modifier-color"),
-            );
-            colors.insert(
-                "keyboard-modifier-text".to_string(),
-                lookup("keyboard-modifier-text-color"),
-            );
-            colors.insert(
-                "keyboard-key-text".to_string(),
-                lookup("keyboard-key-text-color"),
-            );
-            colors.insert("keyboard-key".to_string(), lookup("keyboard-key-color"));
-            colors.insert(
-                "keyboard-key-current-text".to_string(),
-                lookup("keyboard-key-current-text-color"),
-            );
-            colors.insert(
-                "keyboard-key-current".to_string(),
-                lookup("keyboard-key-current-color"),
-            );
-            colors.insert(
-                "keyboard-modifier-current".to_string(),
-                lookup("keyboard-modifier-current-color"),
-            );
-            colors.insert(
-                "keyboard-modifier-current-text".to_string(),
-                lookup("keyboard-modifier-current-text-color"),
-            );
-            colors.insert(
-                "keyboard-border".to_string(),
-                lookup("keyboard-border-color"),
-            );
-
-            // Cache finger colors
-            for finger in [
-                Finger::LeftPinky,
-                Finger::LeftRing,
-                Finger::LeftMiddle,
-                Finger::LeftIndex,
-                Finger::LeftThumb,
-                Finger::RightIndex,
-                Finger::RightMiddle,
-                Finger::RightRing,
-                Finger::RightPinky,
-                Finger::RightThumb,
-                Finger::BothThumbs,
-            ] {
-                let class_name = Self::get_finger_css_class(&finger);
-                let color_name = format!("{}-color", class_name);
-                colors.insert(class_name, lookup(&color_name));
+        /// Replace the key widgets with the ones for the current layout.
+        fn rebuild_keys(&self) {
+            let obj = self.obj();
+            for key in self.keys.take() {
+                key.unparent();
             }
 
-            *self.cached_colors.borrow_mut() = Some(colors);
-        }
-    }
-
-    impl KeyboardWidget {
-        fn calculate_size(layout: &KeyboardLayout) -> (i32, i32) {
-            let key_width = KeyKind::Character.width() as f64;
-            let key_height = KEY_SIZE as f64;
-            let key_spacing = KEY_SPACING as f64;
-            let row_spacing = KEY_SPACING as f64;
-            let modifier = |name: &str| KeyKind::Modifier(name).width() as f64;
-
-            let row0_keys = layout.keys.first().map(|r| r.len()).unwrap_or(12);
-            let row0_width = row0_keys as f64 * key_width
-                + (row0_keys - 1) as f64 * key_spacing
-                + key_spacing
-                + modifier("backspace");
-
-            let enter_on_row1 = layout
-                .modifiers
-                .get("enter")
-                .is_some_and(|e| e.spans_row(1));
-
-            let row1_keys = layout.keys.get(1).map(|r| r.len()).unwrap_or(12);
-            let row1_width = modifier("tab")
-                + key_spacing
-                + row1_keys as f64 * key_width
-                + (row1_keys - 1) as f64 * key_spacing
-                + if enter_on_row1 {
-                    key_spacing + modifier("enter")
-                } else {
-                    0.0
+            let layout = self.layout.borrow();
+            let mut keys = Vec::new();
+            for entry in layout.key_entries() {
+                let key = match entry.kind {
+                    KeyKind::Character => {
+                        let Some(info) = entry
+                            .col
+                            .and_then(|col| layout.keys.get(entry.row)?.get(col))
+                        else {
+                            continue;
+                        };
+                        Key::character(entry, info)
+                    }
+                    KeyKind::Modifier(name) => {
+                        let Some(modifier) = layout.modifiers.get(name) else {
+                            continue;
+                        };
+                        Key::modifier(entry, &modifier.label)
+                    }
+                    KeyKind::Space => Key::space(
+                        entry,
+                        layout.space.label.as_deref().unwrap_or("SPACE"),
+                        layout.space.finger,
+                    ),
                 };
+                key.set_parent(&*obj);
+                keys.push(key);
+            }
+            drop(layout);
+            *self.keys.borrow_mut() = keys;
 
-            let row2_keys = layout.keys.get(2).map(|r| r.len()).unwrap_or(12);
-            let row2_width = modifier("caps_lock")
-                + key_spacing
-                + row2_keys as f64 * key_width
-                + row2_keys as f64 * key_spacing
-                + modifier("enter")
-                - key_spacing * 2.0;
-
-            let row3_keys = layout.keys.get(3).map(|r| r.len()).unwrap_or(11);
-            let row3_width = modifier("shift_left")
-                + key_spacing
-                + row3_keys as f64 * key_width
-                + (row3_keys - 1) as f64 * key_spacing
-                + key_spacing
-                + modifier("shift_right");
-
-            let row4_width = [
-                modifier("ctrl_left"),
-                modifier("super_left"),
-                modifier("alt_left"),
-                KeyKind::Space.width() as f64,
-                modifier("alt_right"),
-                modifier("super_right"),
-                modifier("menu"),
-                modifier("ctrl_right"),
-            ]
-            .iter()
-            .sum::<f64>()
-                + 7.0 * key_spacing;
-
-            let keyboard_width = row0_width
-                .max(row1_width)
-                .max(row2_width)
-                .max(row3_width)
-                .max(row4_width) as i32;
-            let keyboard_height = (5.0 * key_height + 4.0 * row_spacing) as i32;
-
-            (keyboard_width, keyboard_height)
+            self.update_key_states();
         }
 
-        fn get_finger_css_class(finger: &Finger) -> String {
-            format!("finger-{}", finger.to_string().replace('_', "-"))
-        }
+        /// Mark the key(s) to press next and dim the keys the lesson does not use.
+        pub fn update_key_states(&self) {
+            let layout = self.layout.borrow();
+            let visible = self.visible_keys.borrow();
+            let current = *self.current_key.borrow();
+            let target = *self.current_target.borrow();
+            let required_modifiers = target
+                .map(|t| layout.modifier_keys_for(&t))
+                .unwrap_or_default();
 
-        /// Build a font description based on the widget's system font
-        /// (Adwaita Sans), overriding only the point size. This keeps the
-        /// keyboard's typography consistent with the rest of the app.
-        fn key_font(pango_context: &pango::Context, size_pt: f64) -> pango::FontDescription {
-            let mut font_desc = pango_context.font_description().unwrap_or_default();
-            font_desc.set_size((size_pt * f64::from(pango::SCALE)).round() as i32);
-            font_desc
-        }
-
-        #[allow(clippy::too_many_arguments)]
-        fn draw_single_key(
-            snapshot: &gtk::Snapshot,
-            pango_context: &pango::Context,
-            x: f32,
-            y: f32,
-            width: f32,
-            height: f32,
-            key_info: Option<&KeyInfo>,
-            label: Option<&str>,
-            is_current: bool,
-            should_show_text: bool,
-            key_current_color: &gdk::RGBA,
-            key_text_color: &gdk::RGBA,
-            key_current_text_color: &gdk::RGBA,
-            key_border_color: &gdk::RGBA,
-            finger_fill_color: &gdk::RGBA,
-        ) {
-            let bounds = graphene::Rect::new(x, y, width, height);
-            let corner = graphene::Size::new(KEY_CORNER_RADIUS, KEY_CORNER_RADIUS);
-            let rounded = gsk::RoundedRect::new(bounds, corner, corner, corner, corner);
-
-            snapshot.push_rounded_clip(&rounded);
-            snapshot.append_color(
-                if is_current {
-                    key_current_color
-                } else {
-                    finger_fill_color
-                },
-                &bounds,
-            );
-            snapshot.pop();
-
-            let border_color = key_border_color;
-            snapshot.append_border(
-                &rounded,
-                &[
-                    KEY_BORDER_WIDTH,
-                    KEY_BORDER_WIDTH,
-                    KEY_BORDER_WIDTH,
-                    KEY_BORDER_WIDTH,
-                ],
-                &[*border_color, *border_color, *border_color, *border_color],
-            );
-
-            if should_show_text {
-                let text_color = if is_current {
-                    key_current_text_color
-                } else {
-                    key_text_color
-                };
-
-                if let Some(label_text) = label {
-                    let layout = pango::Layout::new(pango_context);
-                    let font_desc = Self::key_font(pango_context, 9.0);
-                    layout.set_font_description(Some(&font_desc));
-                    layout.set_text(label_text);
-                    let (_, logical_rect) = layout.pixel_extents();
-                    let text_width = logical_rect.width();
-                    let text_height = logical_rect.height();
-                    snapshot.save();
-                    snapshot.translate(&graphene::Point::new(
-                        x + (width - text_width as f32) / 2.0,
-                        y + (height - text_height as f32) / 2.0 - logical_rect.y() as f32,
-                    ));
-                    snapshot.append_layout(&layout, text_color);
-                    snapshot.restore();
-                } else if let Some(key) = key_info {
-                    let base_text = if key.base.chars().next().unwrap().is_alphabetic() {
-                        key.base.to_uppercase()
-                    } else {
-                        key.base.clone()
-                    };
-                    let is_alphabetic = key.base.chars().next().unwrap().is_alphabetic();
-
-                    let layout = pango::Layout::new(pango_context);
-
-                    if is_alphabetic {
-                        let font_desc = Self::key_font(pango_context, 14.0);
-                        layout.set_font_description(Some(&font_desc));
-                        layout.set_text(&base_text);
-                        let (text_width, text_height) = layout.pixel_size();
-                        snapshot.save();
-                        snapshot.translate(&graphene::Point::new(
-                            x + (width - text_width as f32) / 2.0,
-                            y + (height - text_height as f32) / 2.0,
-                        ));
-                        snapshot.append_layout(&layout, text_color);
-                        snapshot.restore();
-                    } else {
-                        let font_desc = Self::key_font(pango_context, 14.0);
-                        layout.set_font_description(Some(&font_desc));
-
-                        layout.set_text(&base_text);
-                        let (_, text_height) = layout.pixel_size();
-                        snapshot.save();
-                        snapshot.translate(&graphene::Point::new(
-                            x + 5.0,
-                            y + height - text_height as f32,
-                        ));
-                        snapshot.append_layout(&layout, text_color);
-                        snapshot.restore();
-
-                        if let Some(shift_text) = &key.shift {
-                            layout.set_text(shift_text);
-                            snapshot.save();
-                            snapshot.translate(&graphene::Point::new(x + 5.0, y));
-                            snapshot.append_layout(&layout, text_color);
-                            snapshot.restore();
-                        }
-
-                        if let Some(altgr_text) = &key.altgr
-                            && !altgr_text.is_empty()
-                        {
-                            layout.set_text(altgr_text);
-                            let (text_width, text_height) = layout.pixel_size();
-                            snapshot.save();
-                            snapshot.translate(&graphene::Point::new(
-                                x + width - text_width as f32 - 5.0,
-                                y + height - text_height as f32,
-                            ));
-                            snapshot.append_layout(&layout, text_color);
-                            snapshot.restore();
+            for key in self.keys.borrow().iter() {
+                let entry = key.entry();
+                match entry.kind {
+                    KeyKind::Character => {
+                        let Some(col) = entry.col else { continue };
+                        key.set_current(target.is_some_and(|t| t.row == entry.row && t.col == col));
+                        if let Some(info) = layout.keys.get(entry.row).and_then(|r| r.get(col)) {
+                            key.set_dimmed(!layout.is_key_visible(info, visible.as_ref()));
                         }
                     }
+                    KeyKind::Modifier(name) => {
+                        key.set_current(required_modifiers.contains(&name));
+                    }
+                    KeyKind::Space => {
+                        key.set_current(current == Some(' '));
+                        key.set_dimmed(visible.as_ref().is_some_and(|v| !v.contains(&' ')));
+                    }
                 }
-            }
-        }
-
-        fn draw_keyboard(
-            snapshot: &gtk::Snapshot,
-            widget: &super::KeyboardWidget,
-            current_key: &RefCell<Option<char>>,
-            current_target: &RefCell<Option<ResolvedKey>>,
-            layout: &RefCell<KeyboardLayout>,
-            visible_keys: &RefCell<Option<HashSet<char>>>,
-            cached_colors: &RefCell<Option<HashMap<String, gdk::RGBA>>>,
-        ) {
-            let layout_borrowed = layout.borrow();
-            let visible_keys_borrowed = visible_keys.borrow();
-
-            let key_width = KeyKind::Character.width();
-            let key_height = KEY_SIZE;
-            let key_spacing = KEY_SPACING;
-            let row_spacing = KEY_SPACING;
-
-            let pango_context = widget.pango_context();
-
-            let colors = cached_colors.borrow();
-            let colors = colors.as_ref().expect("Colors should be cached");
-
-            let modifier_color = colors["keyboard-modifier"];
-            let modifier_text_color = colors["keyboard-modifier-text"];
-            let key_text_color = colors["keyboard-key-text"];
-            let key_color = colors["keyboard-key"];
-            let key_current_text_color = colors["keyboard-key-current-text"];
-            let key_current_color = colors["keyboard-key-current"];
-            let key_border_color = colors["keyboard-border"];
-            let modifier_current_color = colors["keyboard-modifier-current"];
-            let modifier_current_text_color = colors["keyboard-modifier-current-text"];
-
-            let settings = gio::Settings::new(crate::config::APPLICATION_ID);
-            let use_finger_colors = settings.boolean("use-finger-colors");
-
-            let get_finger_color = |finger: &Finger| -> gdk::RGBA {
-                if use_finger_colors {
-                    let class_name = Self::get_finger_css_class(finger);
-                    colors.get(&class_name).copied().unwrap_or(key_color)
-                } else {
-                    key_color
-                }
-            };
-
-            let current = current_key.borrow();
-
-            let target = *current_target.borrow();
-
-            let is_key_current = |row: usize, col: usize| -> bool {
-                target.is_some_and(|t| t.row == row && t.col == col)
-            };
-
-            let required_modifiers = target
-                .map(|t| layout_borrowed.modifier_keys_for(&t))
-                .unwrap_or_default();
-            let is_modifier_current = |name: &str| required_modifiers.contains(&name);
-
-            let should_show_key = |key_info: &KeyInfo| -> bool {
-                layout_borrowed.is_key_visible(key_info, visible_keys_borrowed.as_ref())
-            };
-
-            let should_show_char = |ch: char| -> bool {
-                visible_keys_borrowed
-                    .as_ref()
-                    .is_none_or(|visible| visible.contains(&ch))
-            };
-
-            // Row 0: Number row + Backspace
-            let mut x = 0.0;
-            let y = 0.0;
-            if let Some(row) = layout_borrowed.keys.first() {
-                for (col, key_info) in row.iter().enumerate() {
-                    Self::draw_single_key(
-                        snapshot,
-                        &pango_context,
-                        x,
-                        y,
-                        key_width,
-                        key_height,
-                        Some(key_info),
-                        None,
-                        is_key_current(0, col),
-                        should_show_key(key_info),
-                        &key_current_color,
-                        &key_text_color,
-                        &key_current_text_color,
-                        &key_border_color,
-                        &get_finger_color(&key_info.finger),
-                    );
-                    x += key_width + key_spacing;
-                }
-                if let Some(backspace) = layout_borrowed.modifiers.get("backspace") {
-                    Self::draw_single_key(
-                        snapshot,
-                        &pango_context,
-                        x,
-                        y,
-                        KeyKind::Modifier("backspace").width(),
-                        key_height,
-                        None,
-                        Some(&backspace.label),
-                        false,
-                        true,
-                        &key_current_color,
-                        &modifier_text_color,
-                        &key_current_text_color,
-                        &key_border_color,
-                        &modifier_color,
-                    );
-                }
-            }
-
-            // Row 1: Tab + QWERTY row + Enter (spans to row 2)
-            x = 0.0;
-            let y1 = y + key_height + row_spacing;
-            if let Some(tab) = layout_borrowed.modifiers.get("tab") {
-                Self::draw_single_key(
-                    snapshot,
-                    &pango_context,
-                    x,
-                    y1,
-                    KeyKind::Modifier("tab").width(),
-                    key_height,
-                    None,
-                    Some(&tab.label),
-                    false,
-                    true,
-                    &key_current_color,
-                    &modifier_text_color,
-                    &key_current_text_color,
-                    &key_border_color,
-                    &modifier_color,
-                );
-                x += KeyKind::Modifier("tab").width() + key_spacing;
-            }
-            if let Some(row) = layout_borrowed.keys.get(1) {
-                for (col, key_info) in row.iter().enumerate() {
-                    Self::draw_single_key(
-                        snapshot,
-                        &pango_context,
-                        x,
-                        y1,
-                        key_width,
-                        key_height,
-                        Some(key_info),
-                        None,
-                        is_key_current(1, col),
-                        should_show_key(key_info),
-                        &key_current_color,
-                        &key_text_color,
-                        &key_current_text_color,
-                        &key_border_color,
-                        &get_finger_color(&key_info.finger),
-                    );
-                    x += key_width + key_spacing;
-                }
-            }
-            if let Some(enter) = layout_borrowed.modifiers.get("enter")
-                && enter.spans_row(1)
-            {
-                let enter_height = key_height * 2.0 + row_spacing;
-                Self::draw_single_key(
-                    snapshot,
-                    &pango_context,
-                    x,
-                    y1,
-                    KeyKind::Modifier("enter").width(),
-                    enter_height,
-                    None,
-                    Some(&enter.label),
-                    false,
-                    true,
-                    &key_current_color,
-                    &modifier_text_color,
-                    &key_current_text_color,
-                    &key_border_color,
-                    &modifier_color,
-                );
-            }
-
-            // Row 2: Caps Lock + Home row + Enter (if single-row)
-            x = 0.0;
-            let y2 = y1 + key_height + row_spacing;
-            if let Some(caps) = layout_borrowed.modifiers.get("caps_lock") {
-                Self::draw_single_key(
-                    snapshot,
-                    &pango_context,
-                    x,
-                    y2,
-                    KeyKind::Modifier("caps_lock").width(),
-                    key_height,
-                    None,
-                    Some(&caps.label),
-                    false,
-                    true,
-                    &key_current_color,
-                    &modifier_text_color,
-                    &key_current_text_color,
-                    &key_border_color,
-                    &modifier_color,
-                );
-                x += KeyKind::Modifier("caps_lock").width() + key_spacing;
-            }
-            if let Some(row) = layout_borrowed.keys.get(2) {
-                for (col, key_info) in row.iter().enumerate() {
-                    Self::draw_single_key(
-                        snapshot,
-                        &pango_context,
-                        x,
-                        y2,
-                        key_width,
-                        key_height,
-                        Some(key_info),
-                        None,
-                        is_key_current(2, col),
-                        should_show_key(key_info),
-                        &key_current_color,
-                        &key_text_color,
-                        &key_current_text_color,
-                        &key_border_color,
-                        &get_finger_color(&key_info.finger),
-                    );
-                    x += key_width + key_spacing;
-                }
-            }
-            if let Some(enter) = layout_borrowed.modifiers.get("enter")
-                && enter.spans_row(2)
-                && !enter.spans_row(1)
-            {
-                let row0_keys = layout_borrowed.keys.first().map(|r| r.len()).unwrap_or(13);
-                let keyboard_right_edge = row0_keys as f32 * key_width
-                    + (row0_keys - 1) as f32 * key_spacing
-                    + key_spacing
-                    + KeyKind::Modifier("backspace").width();
-                let enter_width = keyboard_right_edge - x;
-                Self::draw_single_key(
-                    snapshot,
-                    &pango_context,
-                    x,
-                    y2,
-                    enter_width,
-                    key_height,
-                    None,
-                    Some(&enter.label),
-                    false,
-                    true,
-                    &key_current_color,
-                    &modifier_text_color,
-                    &key_current_text_color,
-                    &key_border_color,
-                    &modifier_color,
-                );
-            }
-
-            // Row 3: Left Shift + Bottom row + Right Shift
-            x = 0.0;
-            let y3 = y2 + key_height + row_spacing;
-            if let Some(shift_l) = layout_borrowed.modifiers.get("shift_left") {
-                Self::draw_single_key(
-                    snapshot,
-                    &pango_context,
-                    x,
-                    y3,
-                    KeyKind::Modifier("shift_left").width(),
-                    key_height,
-                    None,
-                    Some(&shift_l.label),
-                    is_modifier_current("shift_left"),
-                    true,
-                    &modifier_current_color,
-                    &modifier_text_color,
-                    &modifier_current_text_color,
-                    &key_border_color,
-                    &modifier_color,
-                );
-                x += KeyKind::Modifier("shift_left").width() + key_spacing;
-            }
-            if let Some(row) = layout_borrowed.keys.get(3) {
-                for (col, key_info) in row.iter().enumerate() {
-                    Self::draw_single_key(
-                        snapshot,
-                        &pango_context,
-                        x,
-                        y3,
-                        key_width,
-                        key_height,
-                        Some(key_info),
-                        None,
-                        is_key_current(3, col),
-                        should_show_key(key_info),
-                        &key_current_color,
-                        &key_text_color,
-                        &key_current_text_color,
-                        &key_border_color,
-                        &get_finger_color(&key_info.finger),
-                    );
-                    x += key_width + key_spacing;
-                }
-            }
-            if let Some(shift_r) = layout_borrowed.modifiers.get("shift_right") {
-                Self::draw_single_key(
-                    snapshot,
-                    &pango_context,
-                    x,
-                    y3,
-                    KeyKind::Modifier("shift_right").width(),
-                    key_height,
-                    None,
-                    Some(&shift_r.label),
-                    is_modifier_current("shift_right"),
-                    true,
-                    &modifier_current_color,
-                    &modifier_text_color,
-                    &modifier_current_text_color,
-                    &key_border_color,
-                    &modifier_color,
-                );
-            }
-
-            // Row 4: Ctrl + Super + Alt + Space + Alt + Super + Ctrl
-            x = 0.0;
-            let y4 = y3 + key_height + row_spacing;
-            if let Some(ctrl_l) = layout_borrowed.modifiers.get("ctrl_left") {
-                Self::draw_single_key(
-                    snapshot,
-                    &pango_context,
-                    x,
-                    y4,
-                    KeyKind::Modifier("ctrl_left").width(),
-                    key_height,
-                    None,
-                    Some(&ctrl_l.label),
-                    false,
-                    true,
-                    &key_current_color,
-                    &modifier_text_color,
-                    &key_current_text_color,
-                    &key_border_color,
-                    &modifier_color,
-                );
-                x += KeyKind::Modifier("ctrl_left").width() + key_spacing;
-            }
-            if let Some(super_l) = layout_borrowed.modifiers.get("super_left") {
-                Self::draw_single_key(
-                    snapshot,
-                    &pango_context,
-                    x,
-                    y4,
-                    KeyKind::Modifier("super_left").width(),
-                    key_height,
-                    None,
-                    Some(&super_l.label),
-                    false,
-                    true,
-                    &key_current_color,
-                    &modifier_text_color,
-                    &key_current_text_color,
-                    &key_border_color,
-                    &modifier_color,
-                );
-                x += KeyKind::Modifier("super_left").width() + key_spacing;
-            }
-            if let Some(alt_l) = layout_borrowed.modifiers.get("alt_left") {
-                Self::draw_single_key(
-                    snapshot,
-                    &pango_context,
-                    x,
-                    y4,
-                    KeyKind::Modifier("alt_left").width(),
-                    key_height,
-                    None,
-                    Some(&alt_l.label),
-                    false,
-                    true,
-                    &key_current_color,
-                    &modifier_text_color,
-                    &key_current_text_color,
-                    &key_border_color,
-                    &modifier_color,
-                );
-                x += KeyKind::Modifier("alt_left").width() + key_spacing;
-            }
-            let is_space_current = current.is_some_and(|c| c == ' ');
-            let space_label = layout_borrowed.space.label.as_deref().unwrap_or("SPACE");
-            Self::draw_single_key(
-                snapshot,
-                &pango_context,
-                x,
-                y4,
-                KeyKind::Space.width(),
-                key_height,
-                None,
-                Some(space_label),
-                is_space_current,
-                should_show_char(' '),
-                &key_current_color,
-                &key_text_color,
-                &key_current_text_color,
-                &key_border_color,
-                &get_finger_color(&layout_borrowed.space.finger),
-            );
-            x += KeyKind::Space.width() + key_spacing;
-            if let Some(alt_r) = layout_borrowed.modifiers.get("alt_right") {
-                Self::draw_single_key(
-                    snapshot,
-                    &pango_context,
-                    x,
-                    y4,
-                    KeyKind::Modifier("alt_right").width(),
-                    key_height,
-                    None,
-                    Some(&alt_r.label),
-                    is_modifier_current("alt_right"),
-                    true,
-                    &modifier_current_color,
-                    &modifier_text_color,
-                    &modifier_current_text_color,
-                    &key_border_color,
-                    &modifier_color,
-                );
-                x += KeyKind::Modifier("alt_right").width() + key_spacing;
-            }
-            if let Some(super_r) = layout_borrowed.modifiers.get("super_right") {
-                Self::draw_single_key(
-                    snapshot,
-                    &pango_context,
-                    x,
-                    y4,
-                    KeyKind::Modifier("super_right").width(),
-                    key_height,
-                    None,
-                    Some(&super_r.label),
-                    false,
-                    true,
-                    &key_current_color,
-                    &modifier_text_color,
-                    &key_current_text_color,
-                    &key_border_color,
-                    &modifier_color,
-                );
-                x += KeyKind::Modifier("super_right").width() + key_spacing;
-            }
-            if let Some(menu) = layout_borrowed.modifiers.get("menu") {
-                Self::draw_single_key(
-                    snapshot,
-                    &pango_context,
-                    x,
-                    y4,
-                    KeyKind::Modifier("menu").width(),
-                    key_height,
-                    None,
-                    Some(&menu.label),
-                    false,
-                    true,
-                    &key_current_color,
-                    &modifier_text_color,
-                    &key_current_text_color,
-                    &key_border_color,
-                    &modifier_color,
-                );
-                x += KeyKind::Modifier("menu").width() + key_spacing;
-            }
-            if let Some(ctrl_r) = layout_borrowed.modifiers.get("ctrl_right") {
-                Self::draw_single_key(
-                    snapshot,
-                    &pango_context,
-                    x,
-                    y4,
-                    KeyKind::Modifier("ctrl_right").width(),
-                    key_height,
-                    None,
-                    Some(&ctrl_r.label),
-                    false,
-                    true,
-                    &key_current_color,
-                    &modifier_text_color,
-                    &key_current_text_color,
-                    &key_border_color,
-                    &modifier_color,
-                );
             }
         }
     }
@@ -945,7 +205,7 @@ impl KeyboardWidget {
         {
             *imp.last_finger.borrow_mut() = Some(finger);
         }
-        self.queue_draw();
+        imp.update_key_states();
     }
 
     pub fn advance_sequence(&self) {
@@ -966,7 +226,7 @@ impl KeyboardWidget {
         {
             *imp.last_finger.borrow_mut() = Some(finger);
         }
-        self.queue_draw();
+        imp.update_key_states();
     }
 
     fn set_target_char(&self, ch: Option<char>) {
@@ -987,8 +247,9 @@ impl KeyboardWidget {
     }
 
     pub fn set_visible_keys(&self, keys: Option<HashSet<char>>) {
-        *self.imp().visible_keys.borrow_mut() = keys;
-        self.queue_draw();
+        let imp = self.imp();
+        *imp.visible_keys.borrow_mut() = keys;
+        imp.update_key_states();
     }
 
     pub fn get_finger_for_char(&self, ch: char) -> Option<Finger> {

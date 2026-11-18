@@ -4,6 +4,7 @@ mod course_completion_view;
 mod hand_widget;
 mod key;
 mod keyboard_layout;
+mod keyboard_layout_manager;
 mod keyboard_widget;
 mod language;
 mod lesson_view;

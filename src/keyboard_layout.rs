@@ -1,3 +1,4 @@
+use crate::key::KeyEntry;
 use crate::utils::decompose_with_spacing_accent;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -251,6 +252,58 @@ impl KeyboardLayout {
                         .any(|&p| p == spacing_accent || p == base)
                 })
         })
+    }
+
+    /// The keys of the on-screen keyboard in reading order, each with the
+    /// row it starts in. Modifiers missing from the layout are left out.
+    pub fn key_entries(&self) -> Vec<KeyEntry> {
+        let mut entries = Vec::new();
+
+        let modifier = |entries: &mut Vec<KeyEntry>, name: &'static str, row: usize| {
+            if self.modifiers.contains_key(name) {
+                entries.push(KeyEntry::modifier(name, row));
+            }
+        };
+        let characters = |entries: &mut Vec<KeyEntry>, row: usize| {
+            let count = self.keys.get(row).map_or(0, Vec::len);
+            entries.extend((0..count).map(|col| KeyEntry::character(row, col)));
+        };
+        let enter = self.modifiers.get("enter");
+
+        characters(&mut entries, 0);
+        modifier(&mut entries, "backspace", 0);
+
+        modifier(&mut entries, "tab", 1);
+        characters(&mut entries, 1);
+        if enter.is_some_and(|e| e.spans_row(1)) {
+            let rows = if enter.is_some_and(|e| e.spans_row(2)) {
+                2
+            } else {
+                1
+            };
+            entries.push(KeyEntry::modifier("enter", 1).spanning(rows));
+        }
+
+        modifier(&mut entries, "caps_lock", 2);
+        characters(&mut entries, 2);
+        if enter.is_some_and(|e| e.spans_row(2) && !e.spans_row(1)) {
+            entries.push(KeyEntry::modifier("enter", 2).filling());
+        }
+
+        modifier(&mut entries, "shift_left", 3);
+        characters(&mut entries, 3);
+        modifier(&mut entries, "shift_right", 3);
+
+        modifier(&mut entries, "ctrl_left", 4);
+        modifier(&mut entries, "super_left", 4);
+        modifier(&mut entries, "alt_left", 4);
+        entries.push(KeyEntry::space(4));
+        modifier(&mut entries, "alt_right", 4);
+        modifier(&mut entries, "super_right", 4);
+        modifier(&mut entries, "menu", 4);
+        modifier(&mut entries, "ctrl_right", 4);
+
+        entries
     }
 
     pub fn modifier_finger_for(&self, target: &ResolvedKey) -> Option<Finger> {

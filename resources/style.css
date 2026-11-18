@@ -32,6 +32,98 @@
 @define-color finger-right-thumb-color color-mix(in srgb, oklab(from @green_3 0.6 a b) 25%, @view_bg_color);
 @define-color finger-both-thumbs-color color-mix(in srgb, oklab(from @green_3 0.6 a b) 25%, @view_bg_color);
 
+/* On-screen keyboard: one `key` node per key, see key.rs and keyboard_widget.rs */
+key {
+  background-color: @keyboard-key-color;
+  color: @keyboard-key-text-color;
+  /* An inset shadow instead of a border: borders would add to the key's
+     size, which the keyboard layout expects to be exact. */
+  box-shadow: inset 0 0 0 1px @keyboard-border-color;
+  border-radius: 5px;
+}
+
+key label {
+  margin: 0 5px;
+}
+
+key label.letter,
+key label.symbol {
+  font-size: 14pt;
+}
+
+key label.caption {
+  font-size: 9pt;
+  margin: 0;
+}
+
+key.modifier {
+  background-color: @keyboard-modifier-color;
+  color: @keyboard-modifier-text-color;
+}
+
+/* Keys the lesson does not use keep their shape but not their text */
+key.dimmed label {
+  opacity: 0;
+}
+
+/* Colour the keys by the finger that presses them */
+keyboard.finger-colors key.finger-left-pinky {
+  background-color: @finger-left-pinky-color;
+}
+
+keyboard.finger-colors key.finger-right-pinky {
+  background-color: @finger-right-pinky-color;
+}
+
+keyboard.finger-colors key.finger-left-ring {
+  background-color: @finger-left-ring-color;
+}
+
+keyboard.finger-colors key.finger-right-ring {
+  background-color: @finger-right-ring-color;
+}
+
+keyboard.finger-colors key.finger-left-middle {
+  background-color: @finger-left-middle-color;
+}
+
+keyboard.finger-colors key.finger-right-middle {
+  background-color: @finger-right-middle-color;
+}
+
+keyboard.finger-colors key.finger-left-index {
+  background-color: @finger-left-index-color;
+}
+
+keyboard.finger-colors key.finger-right-index {
+  background-color: @finger-right-index-color;
+}
+
+keyboard.finger-colors key.finger-left-thumb {
+  background-color: @finger-left-thumb-color;
+}
+
+keyboard.finger-colors key.finger-right-thumb {
+  background-color: @finger-right-thumb-color;
+}
+
+keyboard.finger-colors key.finger-both-thumbs {
+  background-color: @finger-both-thumbs-color;
+}
+
+/* The key to press next. The second selector outweighs the finger colours
+   above, and the modifier rule below outweighs both. */
+key.current,
+keyboard.finger-colors key.current {
+  background-color: @keyboard-key-current-color;
+  color: @keyboard-key-current-text-color;
+}
+
+keyboard key.modifier.current {
+  background-color: @keyboard-modifier-current-color;
+  color: @keyboard-modifier-current-text-color;
+}
+
 .card.typing-error {
   background-color: alpha(@error_color, 0.2);
   transition: background-color 100ms ease-out;

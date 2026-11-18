@@ -67,8 +67,17 @@
 ### KeyboardWidget (`src/keyboard_widget.rs`)
 - **Parent**: `gtk::Widget`
 - **Role**: Visual on-screen keyboard that highlights the current key to press and shows finger assignments.
-- **Key behavior**: Loads keyboard layout from JSON, custom `snapshot()` rendering of keys with color-coded fingers, supports dead key sequences (accent → base char), handles modifier keys (Shift, AltGr).
-- **Inner types**: `KeyboardLayout`, `KeyInfo`, `Finger`, `ModifierKey`
+- **Key behavior**: Loads keyboard layout from JSON and creates one `Key` child per key (from `KeyboardLayout::key_entries`), placed by `KeyboardLayoutManager`. Tracks the current key and marks keys with CSS classes (`current`, `dimmed`). Supports dead key sequences (accent → base char) and highlights the modifier keys to hold (Shift, AltGr). The `use-finger-colors` setting toggles the `finger-colors` class on the keyboard. CSS node: `keyboard`.
+- **Model types** (in `src/keyboard_layout.rs`): `KeyboardLayout`, `KeyInfo`, `Finger`, `ModifierKey`
+
+### Key (`src/key.rs`)
+- **Parent**: `gtk::Widget`
+- **Role**: One key of the on-screen keyboard. Its size comes from its `KeyKind` (character, named modifier, space), in units of `KEY_SIZE` (50 px); a `KeyEntry` adds the row, the row span (ISO Enter covers two rows) and whether it fills to the right edge (single-row Enter).
+- **Key behavior**: Shows its text with child `gtk::Label`s (a centered letter; base/shift/AltGr in the corners for symbol keys; a small `caption` for modifiers and space). All colours come from `resources/style.css` through CSS classes: `modifier`, `current`, `dimmed`, `finger-<name>`. CSS node: `key`.
+
+### KeyboardLayoutManager (`src/keyboard_layout_manager.rs`)
+- **Parent**: `gtk::LayoutManager`
+- **Role**: Places the `Key` children of `KeyboardWidget` row by row, left to right, with `KEY_SPACING` (5 px) gaps. The pure `flow()` function does the math (multi-row keys go after the widest covered row, `fill` keys stretch to the widest row) and is unit-tested.
 
 ### HandWidget (`src/hand_widget.rs`)
 - **Parent**: `gtk::Widget`

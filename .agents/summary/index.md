@@ -33,7 +33,7 @@ Teclas is a GTK4/Rust/Adwaita typing tutor application for GNOME. It provides st
 | Games | `src/falling_keys_game.rs`, `src/scrolling_lanes_game.rs` |
 | Text validation | `src/text_utils.rs` |
 | Text generation | `src/text_generation.rs` |
-| Keyboard rendering | `src/keyboard_widget.rs` |
+| Keyboard rendering | `src/keyboard_widget.rs`, `src/key.rs`, `src/keyboard_layout_manager.rs`, `resources/style.css` |
 | Settings | `data/io.github.nacho.teclas.gschema.xml` |
 | Build config | `build.rs`, `Cargo.toml`, `meson.build` |
 
@@ -52,7 +52,7 @@ Teclas is a GTK4/Rust/Adwaita typing tutor application for GNOME. It provides st
 |------|------------------|
 | Add a new view/page | `src/window.rs`, any existing view (e.g., `src/about_view.rs`), `resources/ui/window.ui` |
 | Modify lesson behavior | `src/lesson_view.rs`, `src/course.rs`, `src/typing_row.rs` |
-| Change keyboard rendering | `src/keyboard_widget.rs`, `data/keyboard_layouts/*.json` |
+| Change keyboard rendering | `src/key.rs` (key look and size), `src/keyboard_layout_manager.rs` (placement), `src/keyboard_widget.rs` (state), `resources/style.css`, `data/keyboard_layouts/*.json` |
 | Add a new language | `src/course.rs`, `src/utils.rs`, `src/text_generation.rs`, `po/LINGUAS`, see [workflows.md](workflows.md) |
 | Modify speed test | `src/speed_test_view.rs`, `src/speed_test_text_view.rs`, `src/typing_test_utils.rs` |
 | Change styling | `resources/style.css` |
