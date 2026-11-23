@@ -1,4 +1,6 @@
-project('teclas', 'rust',
+project(
+  'teclas',
+  'rust',
   version: '3.1.1',
   meson_version: '>= 0.59.0',
 )
@@ -9,8 +11,14 @@ gnome = import('gnome')
 cargo = find_program('cargo')
 rustc = find_program('rustc')
 
-gtk4_dep = dependency('gtk4', version: '>= 4.18')
-adwaita_dep = dependency('libadwaita-1', version: '>= 1.7')
+gtk4_dep = dependency(
+  'gtk4',
+  version: '>= 4.18',
+)
+adwaita_dep = dependency(
+  'libadwaita-1',
+  version: '>= 1.7',
+)
 
 gettext_package = meson.project_name()
 localedir = get_option('prefix') / get_option('localedir')
@@ -39,7 +47,8 @@ else
   rust_target = 'debug'
 endif
 
-cargo_build = custom_target('cargo-build',
+cargo_build = custom_target(
+  'cargo-build',
   build_by_default: true,
   build_always_stale: true,
   output: meson.project_name(),
@@ -47,11 +56,12 @@ cargo_build = custom_target('cargo-build',
   install: true,
   install_dir: get_option('bindir'),
   command: [
-    'sh', '-c', 
+    'sh',
+    '-c',
     'cargo build @0@ && cp @1@ @OUTPUT@'.format(
       ' '.join(cargo_options),
-      meson.project_source_root() / 'target' / rust_target / meson.project_name()
-    )
+      meson.project_source_root() / 'target' / rust_target / meson.project_name(),
+    ),
   ],
   env: cargo_env,
 )

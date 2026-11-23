@@ -9,16 +9,20 @@ desktop_file = i18n.merge_file(
 )
 
 # GSchema
-install_data('io.github.nacho.teclas.gschema.xml',
-  install_dir: get_option('datadir') / 'glib-2.0' / 'schemas'
+install_data(
+  'io.github.nacho.teclas.gschema.xml',
+  install_dir: get_option('datadir') / 'glib-2.0' / 'schemas',
 )
 
 # Metainfo
-install_data('io.github.nacho.teclas.metainfo.xml',
-  install_dir: get_option('datadir') / 'metainfo'
+install_data(
+  'io.github.nacho.teclas.metainfo.xml',
+  install_dir: get_option('datadir') / 'metainfo',
 )
 
 # Compile GSettings schemas
-gnome.compile_schemas(build_by_default: true)
+gnome.compile_schemas(
+  build_by_default: true,
+)
 
 subdir('icons')

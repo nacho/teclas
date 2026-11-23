@@ -1,0 +1,7 @@
+# Format the build files with:
+#
+#   meson format -i -c meson.format meson.build po/meson.build data/meson.build data/icons/meson.build
+indent_by = '  '
+kwargs_force_multiline = true
+space_array = false
+wide_colon = false

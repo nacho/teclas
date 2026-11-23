@@ -124,6 +124,8 @@ Full documentation is in `.agents/summary/`. Start with `index.md` for a guided 
 - **ALWAYS run `cargo fmt` before committing** (enforced by pre-commit hook)
 - Run `cargo clippy` to check for warnings
 - Ensure code compiles without errors
+- Format the Meson files with `meson format -i -c meson.format meson.build po/meson.build data/meson.build data/icons/meson.build`
+  (2 spaces, one argument per line)
 
 ### Release Process
 
