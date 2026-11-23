@@ -97,7 +97,7 @@ build.rs                    # Config generation + GResource compilation
 <!-- metadata: scope=ci-hooks-build -->
 
 - **Pre-commit hook** (`.git/hooks/pre-commit`): Runs `cargo fmt --check`; if formatting fails, runs `cargo fmt` and aborts the commit.
-- **CI** (`.github/workflows/ci.yml`): On push/PR to `main` — `cargo fmt --check` → `cargo clippy -- -D warnings` → `cargo build` → `cargo test` → `meson setup + compile`.
+- **CI** (`.github/workflows/ci.yml`): On push/PR to `main` — `cargo fmt --check` → `meson format --check-diff` → `cargo clippy -- -D warnings` → `cargo build` → `cargo test` → `meson setup + compile`.
 - **Flatpak dev manifest** (`build-aux/io.github.nacho.teclas.Devel.json`): Uses GNOME Platform 51, `org.freedesktop.Sdk.Extension.rust-stable`.
 
 ## Detailed Documentation

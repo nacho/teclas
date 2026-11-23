@@ -30,6 +30,9 @@ jobs:
     
     - name: Check formatting
       run: cargo fmt --check
+
+    - name: Check Meson formatting
+      run: meson format --check-diff --configuration meson.format meson.build po/meson.build data/meson.build data/icons/meson.build
     
     - name: Run clippy
       run: cargo clippy -- -D warnings
