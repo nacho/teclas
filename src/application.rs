@@ -79,6 +79,7 @@ impl TeclasApplication {
                         .version(crate::config::VERSION)
                         .developer_name("Ignacio Casal Quinteiro")
                         .developers(["Ignacio Casal Quinteiro"])
+                        .designers(["Philipp Sauberzweig"])
                         .license_type(gtk::License::Gpl30)
                         .website("https://github.com/nacho/teclas")
                         .issue_url("https://github.com/nacho/teclas/issues")
